@@ -46,57 +46,11 @@ jobs:
           # Restore custom AndroidManifest.xml
           cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 
-          # Ensure app level build.gradle targets Java 17 & JVM 17
-          python3 -c '
-          path = "android/app/build.gradle"
-          with open(path, "r", encoding="utf-8") as f:
-              content = f.read()
-          content = content.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
-          content = content.replace("jvmTarget = \x271.8\x27", "jvmTarget = \x2717\x27")
-          content = content.replace("jvmTarget = \"1.8\"", "jvmTarget = \"17\"")
-          with open(path, "w", encoding="utf-8") as f:
-              f.write(content)
-          print("[OK] Configured android/app/build.gradle for Java 17")
-          '
-
       - name: Install Dependencies
         run: flutter pub get
 
       - name: Patch plugins for AGP 8 & Java 17
-        run: |
-          python3 -c '
-          import glob
-
-          # 1. Update on_audio_query_android
-          for path in glob.glob("/home/runner/.pub-cache/hosted/pub.dev/on_audio_query_android-*/android/build.gradle"):
-              with open(path, "r", encoding="utf-8") as f:
-                  content = f.read()
-              
-              if "namespace" not in content:
-                  patch = """android {
-      namespace "com.lucasjosino.on_audio_query"
-      compileOptions {
-          sourceCompatibility JavaVersion.VERSION_17
-          targetCompatibility JavaVersion.VERSION_17
-      }
-      kotlinOptions {
-          jvmTarget = "17"
-      }"""
-                  content = content.replace("android {", patch, 1)
-                  with open(path, "w", encoding="utf-8") as f:
-                      f.write(content)
-                  print(f"[OK] Successfully patched on_audio_query at {path}")
-
-          # 2. Update any other plugins with JavaVersion.VERSION_1_8 to 17
-          for path in glob.glob("/home/runner/.pub-cache/hosted/pub.dev/*/android/build.gradle"):
-              with open(path, "r", encoding="utf-8") as f:
-                  content = f.read()
-              if "JavaVersion.VERSION_1_8" in content:
-                  content = content.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
-                  with open(path, "w", encoding="utf-8") as f:
-                      f.write(content)
-                  print(f"[OK] Upgraded Java version to 17 in {path}")
-          '
+        run: python3 scripts/patch_gradle.py
 
       - name: Build Android Release APK
         run: flutter build apk --release --no-tree-shake-icons
