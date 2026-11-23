@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 import '../../../services/audio_player_manager.dart';
-import '../../../theme/apple_music_theme.dart';
+import '../../../theme/qidu_theme.dart';
 import '../player_screen.dart';
 
 class MiniPlayer extends StatelessWidget {
@@ -45,7 +45,7 @@ class MiniPlayer extends StatelessWidget {
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         height: 64,
         decoration: BoxDecoration(
-          color: AppleMusicTheme.cardDark.withOpacity(0.85),
+          color: QiduTheme.cardDark.withOpacity(0.85),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
           boxShadow: [
@@ -78,10 +78,10 @@ class MiniPlayer extends StatelessWidget {
                           nullArtworkWidget: Container(
                             width: 44,
                             height: 44,
-                            color: AppleMusicTheme.cardLighter,
+                            color: QiduTheme.cardLighter,
                             child: const Icon(
                               CupertinoIcons.music_note,
-                              color: AppleMusicTheme.textSecondary,
+                              color: QiduTheme.textSecondary,
                               size: 22,
                             ),
                           ),
@@ -100,7 +100,7 @@ class MiniPlayer extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                color: AppleMusicTheme.textPrimary,
+                                color: QiduTheme.textPrimary,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 14,
                               ),
@@ -111,7 +111,7 @@ class MiniPlayer extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                color: AppleMusicTheme.textSecondary,
+                                color: QiduTheme.textSecondary,
                                 fontSize: 12,
                               ),
                             ),
@@ -129,7 +129,7 @@ class MiniPlayer extends StatelessWidget {
                               isPlaying
                                   ? CupertinoIcons.pause_fill
                                   : CupertinoIcons.play_fill,
-                              color: AppleMusicTheme.textPrimary,
+                              color: QiduTheme.textPrimary,
                               size: 26,
                             ),
                             onPressed: () => manager.playPause(),
@@ -141,7 +141,7 @@ class MiniPlayer extends StatelessWidget {
                       IconButton(
                         icon: const Icon(
                           CupertinoIcons.forward_fill,
-                          color: AppleMusicTheme.textPrimary,
+                          color: QiduTheme.textPrimary,
                           size: 22,
                         ),
                         onPressed: () => manager.skipToNext(),
@@ -170,7 +170,7 @@ class MiniPlayer extends StatelessWidget {
                         minHeight: 2.5,
                         backgroundColor: Colors.transparent,
                         valueColor: const AlwaysStoppedAnimation<Color>(
-                          AppleMusicTheme.accentRed,
+                          QiduTheme.accentColor,
                         ),
                       );
                     },

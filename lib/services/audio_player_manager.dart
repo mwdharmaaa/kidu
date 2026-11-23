@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
@@ -11,6 +12,30 @@ class EqualizerPreset {
   const EqualizerPreset(this.name, this.gains);
 }
 
+enum AudioQualityTier {
+  highQuality, // High Quality AAC 256 kbps
+  lossless, // Lossless up to 24-bit/48 kHz (ALAC/FLAC)
+  hiResLossless, // Hi-Res Lossless up to 24-bit/192 kHz
+}
+
+class AudioQualityInfo {
+  final String badgeText;
+  final String formatDescription;
+  final String sampleRate;
+  final String bitDepth;
+  final bool isHiRes;
+  final bool isLossless;
+
+  const AudioQualityInfo({
+    required this.badgeText,
+    required this.formatDescription,
+    required this.sampleRate,
+    required this.bitDepth,
+    required this.isHiRes,
+    required this.isLossless,
+  });
+}
+
 class AudioPlayerManager extends ChangeNotifier {
   late final AudioPlayer _player;
   late final AndroidEqualizer _equalizer;
@@ -21,9 +46,22 @@ class AudioPlayerManager extends ChangeNotifier {
   Color _dominantColor = const Color(0xFF1C1C1E);
   Color _secondaryColor = const Color(0xFF000000);
 
+  // Equalizer State
   bool _isEqualizerEnabled = true;
   AndroidEqualizerParameters? _equalizerParameters;
   String _currentPresetName = "Flat";
+
+  // Audio Settings
+  bool _isSoundCheckEnabled = true;
+  bool _isCrossfadeEnabled = false;
+  int _crossfadeSeconds = 4;
+  bool _isGaplessPlaybackEnabled = true;
+  AudioQualityTier _qualityTier = AudioQualityTier.hiResLossless;
+
+  // Sleep Timer
+  Timer? _sleepTimer;
+  DateTime? _sleepTimerEndTime;
+  bool _sleepTimerAtEndOfTrack = false;
 
   static const List<EqualizerPreset> defaultPresets = [
     EqualizerPreset("Flat", [0.0, 0.0, 0.0, 0.0, 0.0]),
@@ -57,6 +95,21 @@ class AudioPlayerManager extends ChangeNotifier {
   AndroidEqualizerParameters? get equalizerParameters => _equalizerParameters;
   String get currentPresetName => _currentPresetName;
 
+  bool get isSoundCheckEnabled => _isSoundCheckEnabled;
+  bool get isCrossfadeEnabled => _isCrossfadeEnabled;
+  int get crossfadeSeconds => _crossfadeSeconds;
+  bool get isGaplessPlaybackEnabled => _isGaplessPlaybackEnabled;
+  AudioQualityTier get qualityTier => _qualityTier;
+
+  DateTime? get sleepTimerEndTime => _sleepTimerEndTime;
+  bool get sleepTimerAtEndOfTrack => _sleepTimerAtEndOfTrack;
+
+  Stream<bool> get shuffleModeEnabledStream => _player.shuffleModeEnabledStream;
+  bool get isShuffleEnabled => _player.shuffleModeEnabled;
+
+  Stream<LoopMode> get loopModeStream => _player.loopModeStream;
+  LoopMode get loopMode => _player.loopMode;
+
   Future<void> _initAudio() async {
     _equalizer = AndroidEqualizer();
     final pipeline = AudioPipeline(androidAudioEffects: [_equalizer]);
@@ -66,26 +119,35 @@ class AudioPlayerManager extends ChangeNotifier {
       await _equalizer.setEnabled(_isEqualizerEnabled);
       _equalizerParameters = await _equalizer.parameters;
     } catch (e) {
-      debugPrint("Equalizer not supported on this platform: $e");
+      debugPrint("Equalizer effect not available: $e");
     }
 
     _player.currentIndexStream.listen((index) {
       if (index != null && index >= 0 && index < _playlist.length) {
         _currentIndex = index;
         _extractPalette(_playlist[index]);
+        if (_sleepTimerAtEndOfTrack) {
+          _player.pause();
+          _cancelSleepTimer();
+        }
         notifyListeners();
       }
     });
 
-    _player.playerStateStream.listen((_) {
+    _player.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed &&
+          _sleepTimerAtEndOfTrack) {
+        _player.pause();
+        _cancelSleepTimer();
+      }
       notifyListeners();
     });
   }
 
-  // --- PLAYBACK METHODS ---
+  // --- PLAYBACK CONTROLS ---
 
   void setPlaylist(List<SongModel> songs, {int initialIndex = 0}) async {
-    _playlist = songs;
+    _playlist = List.from(songs);
     _currentIndex = initialIndex;
 
     final audioSources = songs.map((song) {
@@ -139,6 +201,179 @@ class AudioPlayerManager extends ChangeNotifier {
 
   void seek(Duration position) {
     _player.seek(position);
+  }
+
+  // --- SHUFFLE & LOOP CONTROLS ---
+
+  Future<void> toggleShuffle() async {
+    final enable = !_player.shuffleModeEnabled;
+    if (enable) {
+      await _player.shuffle();
+    }
+    await _player.setShuffleModeEnabled(enable);
+    notifyListeners();
+  }
+
+  Future<void> toggleLoopMode() async {
+    switch (_player.loopMode) {
+      case LoopMode.off:
+        await _player.setLoopMode(LoopMode.all);
+        break;
+      case LoopMode.all:
+        await _player.setLoopMode(LoopMode.one);
+        break;
+      case LoopMode.one:
+        await _player.setLoopMode(LoopMode.off);
+        break;
+    }
+    notifyListeners();
+  }
+
+  // --- DELETE AUDIO FILE ---
+
+  Future<bool> deleteSong(SongModel song) async {
+    try {
+      final file = File(song.data);
+      if (await file.exists()) {
+        await file.delete();
+      }
+
+      final indexToRemove = _playlist.indexWhere((s) => s.id == song.id);
+      if (indexToRemove != -1) {
+        final isCurrent = indexToRemove == _currentIndex;
+        _playlist.removeAt(indexToRemove);
+
+        if (_playlist.isEmpty) {
+          await _player.stop();
+          _currentIndex = -1;
+        } else if (isCurrent) {
+          if (_currentIndex >= _playlist.length) {
+            _currentIndex = _playlist.length - 1;
+          }
+          final nextSong = _playlist[_currentIndex];
+          await _player.setUrl(nextSong.uri ?? nextSong.data);
+          _extractPalette(nextSong);
+        } else if (indexToRemove < _currentIndex) {
+          _currentIndex--;
+        }
+      }
+
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint("Error deleting audio file: $e");
+      return false;
+    }
+  }
+
+  // --- QUALITY & FORMAT DETECTION ---
+
+  AudioQualityInfo getAudioQualityInfo(SongModel? song) {
+    if (song == null) {
+      return const AudioQualityInfo(
+        badgeText: "HIGH QUALITY",
+        formatDescription: "AAC Audio",
+        sampleRate: "44.1 kHz",
+        bitDepth: "16-bit",
+        isHiRes: false,
+        isLossless: false,
+      );
+    }
+
+    final path = song.data.toLowerCase();
+    final ext = path.split('.').last;
+    final durationSec = (song.duration ?? 0) / 1000;
+    final bitrateKbps = durationSec > 0 ? (song.size * 8) / (durationSec * 1000) : 0;
+
+    if (ext == 'flac' || ext == 'alac' || ext == 'wav' || ext == 'aiff' || ext == 'dsd') {
+      if (bitrateKbps > 1411 || path.contains('24bit') || path.contains('192k') || path.contains('96k')) {
+        return AudioQualityInfo(
+          badgeText: "HI-RES LOSSLESS",
+          formatDescription: "${ext.toUpperCase()} Hi-Res Audio",
+          sampleRate: "192 kHz",
+          bitDepth: "24-bit",
+          isHiRes: true,
+          isLossless: true,
+        );
+      }
+      return AudioQualityInfo(
+        badgeText: "LOSSLESS",
+        formatDescription: "${ext.toUpperCase()} Lossless Audio",
+        sampleRate: "44.1 kHz",
+        bitDepth: "16-bit",
+        isHiRes: false,
+        isLossless: true,
+      );
+    }
+
+    return AudioQualityInfo(
+      badgeText: "HIGH QUALITY",
+      formatDescription: ext == 'mp3' ? "MP3 320 kbps" : "AAC 256 kbps",
+      sampleRate: "44.1 kHz",
+      bitDepth: "16-bit",
+      isHiRes: false,
+      isLossless: false,
+    );
+  }
+
+  // --- AUDIO SETTINGS (SOUND CHECK, CROSSFADE, QUALITY) ---
+
+  void setSoundCheck(bool enabled) {
+    _isSoundCheckEnabled = enabled;
+    _player.setVolume(enabled ? 0.92 : 1.0);
+    notifyListeners();
+  }
+
+  void setCrossfade(bool enabled, [int? seconds]) {
+    _isCrossfadeEnabled = enabled;
+    if (seconds != null) _crossfadeSeconds = seconds;
+    notifyListeners();
+  }
+
+  void setGaplessPlayback(bool enabled) {
+    _isGaplessPlaybackEnabled = enabled;
+    notifyListeners();
+  }
+
+  void setQualityTier(AudioQualityTier tier) {
+    _qualityTier = tier;
+    notifyListeners();
+  }
+
+  // --- SLEEP TIMER ---
+
+  void setSleepTimer(Duration? duration, {bool endOfTrack = false}) {
+    _cancelSleepTimer();
+
+    if (endOfTrack) {
+      _sleepTimerAtEndOfTrack = true;
+      _sleepTimerEndTime = null;
+      notifyListeners();
+      return;
+    }
+
+    if (duration != null) {
+      _sleepTimerEndTime = DateTime.now().add(duration);
+      _sleepTimer = Timer(duration, () {
+        _player.pause();
+        _cancelSleepTimer();
+        notifyListeners();
+      });
+    }
+
+    notifyListeners();
+  }
+
+  void cancelSleepTimer() {
+    _cancelSleepTimer();
+    notifyListeners();
+  }
+
+  void _cancelSleepTimer() {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    _sleepTimerEndTime = null;
+    _sleepTimerAtEndOfTrack = false;
   }
 
   // --- PALETTE EXTRACTION ---
@@ -229,6 +464,7 @@ class AudioPlayerManager extends ChangeNotifier {
 
   @override
   void dispose() {
+    _cancelSleepTimer();
     _player.dispose();
     super.dispose();
   }

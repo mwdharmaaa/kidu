@@ -1,11 +1,13 @@
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:provider/provider.dart';
 import '../../services/audio_player_manager.dart';
-import '../../theme/apple_music_theme.dart';
+import '../../theme/qidu_theme.dart';
 import '../equalizer/equalizer_screen.dart';
+import '../settings/settings_screen.dart';
 
 class PlayerScreen extends StatelessWidget {
   const PlayerScreen({super.key});
@@ -24,20 +26,22 @@ class PlayerScreen extends StatelessWidget {
 
     if (currentSong == null) {
       return const Scaffold(
+        backgroundColor: Colors.black,
         body: Center(
-          child: Text("No song playing"),
+          child: Text("No audio selected", style: TextStyle(color: Colors.white)),
         ),
       );
     }
 
     final screenWidth = MediaQuery.of(context).size.width;
     final artworkSize = screenWidth * 0.78;
+    final qualityInfo = manager.getAudioQualityInfo(currentSong);
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 1. Dynamic Mesh Gradient Background (Apple Music signature ambient blur)
+          // 1. Fluid Ambient Gradient Mesh
           AnimatedContainer(
             duration: const Duration(milliseconds: 600),
             curve: Curves.easeInOut,
@@ -74,7 +78,7 @@ class PlayerScreen extends StatelessWidget {
                       IconButton(
                         icon: const Icon(
                           CupertinoIcons.chevron_compact_down,
-                          color: AppleMusicTheme.textSecondary,
+                          color: QiduTheme.textSecondary,
                           size: 32,
                         ),
                         onPressed: () => Navigator.of(context).pop(),
@@ -82,34 +86,89 @@ class PlayerScreen extends StatelessWidget {
                       const Text(
                         "Now Playing",
                         style: TextStyle(
-                          color: AppleMusicTheme.textSecondary,
+                          color: QiduTheme.textSecondary,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 0.5,
                         ),
                       ),
-                      // Equalizer Button
-                      IconButton(
+                      // More Options Menu (Delete, Equalizer, Settings)
+                      PopupMenuButton<String>(
                         icon: const Icon(
-                          CupertinoIcons.slider_horizontal_3,
-                          color: AppleMusicTheme.accentRed,
-                          size: 26,
+                          CupertinoIcons.ellipsis_circle,
+                          color: QiduTheme.textSecondary,
+                          size: 24,
                         ),
-                        tooltip: "Equalizer",
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => const EqualizerScreen(),
-                            ),
-                          );
+                        color: QiduTheme.cardDark,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: BorderSide(color: Colors.white.withOpacity(0.08)),
+                        ),
+                        onSelected: (val) {
+                          if (val == 'equalizer') {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const EqualizerScreen()),
+                            );
+                          } else if (val == 'settings') {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                            );
+                          } else if (val == 'delete') {
+                            _confirmDelete(context, manager, currentSong);
+                          } else if (val == 'quality') {
+                            _showQualityDetails(context, qualityInfo);
+                          }
                         },
+                        itemBuilder: (ctx) => [
+                          const PopupMenuItem(
+                            value: 'quality',
+                            child: Row(
+                              children: [
+                                Icon(CupertinoIcons.waveform_circle, size: 18, color: QiduTheme.hiResGold),
+                                SizedBox(width: 12),
+                                Text("Audio Quality Info"),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'equalizer',
+                            child: Row(
+                              children: [
+                                Icon(CupertinoIcons.slider_horizontal_3, size: 18, color: QiduTheme.accentColor),
+                                SizedBox(width: 12),
+                                Text("Equalizer"),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'settings',
+                            child: Row(
+                              children: [
+                                Icon(CupertinoIcons.gear, size: 18, color: Colors.white),
+                                SizedBox(width: 12),
+                                Text("Audio Settings"),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuDivider(),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(CupertinoIcons.trash, size: 18, color: Colors.redAccent),
+                                SizedBox(width: 12),
+                                Text("Delete Song", style: TextStyle(color: Colors.redAccent)),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
 
                   const Spacer(flex: 1),
 
-                  // Album Artwork with Apple-style rounded rect and drop shadow
+                  // Album Artwork with Shadow
                   Container(
                     width: artworkSize,
                     height: artworkSize,
@@ -132,10 +191,10 @@ class PlayerScreen extends StatelessWidget {
                         artworkHeight: artworkSize,
                         artworkFit: BoxFit.cover,
                         nullArtworkWidget: Container(
-                          color: AppleMusicTheme.cardLighter,
+                          color: QiduTheme.cardLighter,
                           child: Icon(
                             CupertinoIcons.music_note,
-                            color: AppleMusicTheme.textSecondary.withOpacity(0.5),
+                            color: QiduTheme.textSecondary.withOpacity(0.5),
                             size: 90,
                           ),
                         ),
@@ -145,61 +204,109 @@ class PlayerScreen extends StatelessWidget {
 
                   const Spacer(flex: 1),
 
-                  // Song Title & Artist + Favorite
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                  // Song Title, Artist & Lossless Badge
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              currentSong.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppleMusicTheme.textPrimary,
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: -0.5,
-                              ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  currentSong.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: QiduTheme.textPrimary,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  currentSong.artist ?? "Unknown Artist",
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: QiduTheme.textSecondary,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              currentSong.artist ?? "Unknown Artist",
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppleMusicTheme.textSecondary,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w400,
-                              ),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              CupertinoIcons.star,
+                              color: QiduTheme.textSecondary,
+                              size: 22,
                             ),
-                          ],
-                        ),
+                            onPressed: () {},
+                          ),
+                        ],
                       ),
-                      IconButton(
-                        icon: const Icon(
-                          CupertinoIcons.star,
-                          color: AppleMusicTheme.textSecondary,
-                          size: 22,
+
+                      const SizedBox(height: 8),
+
+                      // Lossless / Hi-Res Lossless Interactive Badge
+                      GestureDetector(
+                        onTap: () => _showQualityDetails(context, qualityInfo),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: QiduTheme.losslessBadgeBg,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: qualityInfo.isHiRes
+                                  ? QiduTheme.hiResGold.withOpacity(0.4)
+                                  : Colors.white.withOpacity(0.15),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                qualityInfo.isLossless
+                                    ? CupertinoIcons.waveform
+                                    : CupertinoIcons.music_note_2,
+                                color: qualityInfo.isHiRes
+                                    ? QiduTheme.hiResGold
+                                    : QiduTheme.textSecondary,
+                                size: 11,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                qualityInfo.badgeText,
+                                style: TextStyle(
+                                  color: qualityInfo.isHiRes
+                                      ? QiduTheme.hiResGold
+                                      : QiduTheme.textPrimary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        onPressed: () {
-                          // Favorite action
-                        },
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
                   // Timeline Slider & Timestamps
                   StreamBuilder<Duration>(
                     stream: manager.player.positionStream,
                     builder: (context, snapshot) {
                       final position = snapshot.data ?? Duration.zero;
-                      final totalDuration =
-                          manager.player.duration ?? Duration.zero;
+                      final totalDuration = manager.player.duration ?? Duration.zero;
                       final maxSeconds = totalDuration.inSeconds.toDouble();
                       final currentSeconds = position.inSeconds.toDouble().clamp(
                             0.0,
@@ -210,12 +317,10 @@ class PlayerScreen extends StatelessWidget {
                         children: [
                           SliderTheme(
                             data: SliderTheme.of(context).copyWith(
-                              activeTrackColor: AppleMusicTheme.textPrimary,
-                              inactiveTrackColor:
-                                  Colors.white.withOpacity(0.18),
-                              thumbColor: AppleMusicTheme.textPrimary,
-                              thumbShape: const RoundSliderThumbShape(
-                                  enabledThumbRadius: 5),
+                              activeTrackColor: QiduTheme.textPrimary,
+                              inactiveTrackColor: Colors.white.withOpacity(0.18),
+                              thumbColor: QiduTheme.textPrimary,
+                              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
                               trackHeight: 3.5,
                             ),
                             child: Slider(
@@ -235,14 +340,14 @@ class PlayerScreen extends StatelessWidget {
                                 Text(
                                   _formatDuration(position),
                                   style: const TextStyle(
-                                    color: AppleMusicTheme.textSecondary,
+                                    color: QiduTheme.textSecondary,
                                     fontSize: 12,
                                   ),
                                 ),
                                 Text(
                                   "-${_formatDuration(totalDuration - position)}",
                                   style: const TextStyle(
-                                    color: AppleMusicTheme.textSecondary,
+                                    color: QiduTheme.textSecondary,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -254,23 +359,35 @@ class PlayerScreen extends StatelessWidget {
                     },
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
 
-                  // Playback Controls
+                  // Transport Controls (Shuffle, Previous, Play/Pause, Next, Loop)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
+                      // Shuffle Button
+                      IconButton(
+                        icon: Icon(
+                          CupertinoIcons.shuffle,
+                          color: manager.isShuffleEnabled
+                              ? QiduTheme.accentColor
+                              : QiduTheme.textSecondary,
+                          size: 22,
+                        ),
+                        onPressed: () => manager.toggleShuffle(),
+                      ),
+
                       // Previous Track
                       IconButton(
                         icon: const Icon(
                           CupertinoIcons.backward_fill,
-                          color: AppleMusicTheme.textPrimary,
-                          size: 38,
+                          color: QiduTheme.textPrimary,
+                          size: 36,
                         ),
                         onPressed: () => manager.skipToPrevious(),
                       ),
 
-                      // Large Play / Pause button
+                      // Large Play/Pause button
                       StreamBuilder<bool>(
                         stream: manager.player.playingStream,
                         builder: (context, snapshot) {
@@ -285,11 +402,9 @@ class PlayerScreen extends StatelessWidget {
                                 color: Colors.white.withOpacity(0.15),
                               ),
                               child: Icon(
-                                isPlaying
-                                    ? CupertinoIcons.pause_fill
-                                    : CupertinoIcons.play_fill,
-                                color: AppleMusicTheme.textPrimary,
-                                size: 38,
+                                isPlaying ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
+                                color: QiduTheme.textPrimary,
+                                size: 36,
                               ),
                             ),
                           );
@@ -300,42 +415,48 @@ class PlayerScreen extends StatelessWidget {
                       IconButton(
                         icon: const Icon(
                           CupertinoIcons.forward_fill,
-                          color: AppleMusicTheme.textPrimary,
-                          size: 38,
+                          color: QiduTheme.textPrimary,
+                          size: 36,
                         ),
                         onPressed: () => manager.skipToNext(),
+                      ),
+
+                      // Loop / Repeat Button
+                      IconButton(
+                        icon: Icon(
+                          manager.loopMode == LoopMode.one
+                              ? CupertinoIcons.repeat_1
+                              : CupertinoIcons.repeat,
+                          color: manager.loopMode != LoopMode.off
+                              ? QiduTheme.accentColor
+                              : QiduTheme.textSecondary,
+                          size: 22,
+                        ),
+                        onPressed: () => manager.toggleLoopMode(),
                       ),
                     ],
                   ),
 
                   const SizedBox(height: 16),
 
-                  // Bottom Utilities (Lyrics, Airplay/Device, Playlist queue)
+                  // Bottom Utilities
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       IconButton(
-                        icon: const Icon(
-                          CupertinoIcons.quote_bubble,
-                          color: AppleMusicTheme.textSecondary,
-                          size: 22,
-                        ),
+                        icon: const Icon(CupertinoIcons.quote_bubble, color: QiduTheme.textSecondary, size: 22),
                         onPressed: () {},
                       ),
                       IconButton(
-                        icon: const Icon(
-                          Icons.devices_rounded,
-                          color: AppleMusicTheme.textSecondary,
-                          size: 22,
-                        ),
-                        onPressed: () {},
+                        icon: const Icon(Icons.devices_rounded, color: QiduTheme.textSecondary, size: 22),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                          );
+                        },
                       ),
                       IconButton(
-                        icon: const Icon(
-                          CupertinoIcons.list_bullet,
-                          color: AppleMusicTheme.textSecondary,
-                          size: 22,
-                        ),
+                        icon: const Icon(CupertinoIcons.list_bullet, color: QiduTheme.textSecondary, size: 22),
                         onPressed: () {},
                       ),
                     ],
@@ -345,6 +466,115 @@ class PlayerScreen extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showQualityDetails(BuildContext context, AudioQualityInfo info) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: QiduTheme.cardDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  info.isLossless ? CupertinoIcons.waveform : CupertinoIcons.music_note_2,
+                  color: info.isHiRes ? QiduTheme.hiResGold : QiduTheme.accentColor,
+                  size: 26,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  info.badgeText,
+                  style: TextStyle(
+                    color: info.isHiRes ? QiduTheme.hiResGold : QiduTheme.textPrimary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _infoRow("Format", info.formatDescription),
+            _infoRow("Sample Rate", info.sampleRate),
+            _infoRow("Bit Depth", info.bitDepth),
+            _infoRow("Channel Layout", "Stereo 2.0"),
+            _infoRow("Decoder Engine", "Studio Native Hardware"),
+            const SizedBox(height: 20),
+            Center(
+              child: TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Done", style: TextStyle(color: QiduTheme.accentColor, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: QiduTheme.textSecondary, fontSize: 14)),
+          Text(value, style: const TextStyle(color: QiduTheme.textPrimary, fontWeight: FontWeight.w600, fontSize: 14)),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, AudioPlayerManager manager, SongModel song) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: QiduTheme.cardDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("Delete Audio File?", style: TextStyle(color: Colors.white)),
+        content: Text(
+          "Permanently delete \"${song.title}\" from your device storage? This action cannot be undone.",
+          style: const TextStyle(color: QiduTheme.textSecondary, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            child: const Text("Cancel", style: TextStyle(color: QiduTheme.textSecondary)),
+            onPressed: () => Navigator.pop(ctx),
+          ),
+          TextButton(
+            child: const Text("Delete", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final success = await manager.deleteSong(song);
+              if (context.mounted) {
+                if (success) {
+                  Navigator.of(context).pop(); // Exit player screen
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Deleted ${song.title}"),
+                      backgroundColor: QiduTheme.cardLighter,
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Failed to delete file. Check storage permission."),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                }
+              }
+            },
           ),
         ],
       ),

@@ -4,8 +4,9 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../services/audio_player_manager.dart';
-import '../../theme/apple_music_theme.dart';
+import '../../theme/qidu_theme.dart';
 import '../player/widgets/mini_player.dart';
+import '../settings/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,7 +32,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _checkAndRequestPermissions() async {
     setState(() => _isLoading = true);
 
-    // Permission handling: Android 13+ requires audio permission, older versions require storage
     bool granted = false;
     if (await Permission.audio.status.isGranted ||
         await Permission.storage.status.isGranted) {
@@ -46,7 +46,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    // Also verify with on_audio_query
     if (!granted) {
       granted = await _audioQuery.permissionsRequest();
     }
@@ -106,41 +105,98 @@ class _HomeScreenState extends State<HomeScreen> {
     return "$minutes:$seconds";
   }
 
+  void _deleteSong(AudioPlayerManager manager, SongModel song) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: QiduTheme.cardDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("Delete Audio File?", style: TextStyle(color: Colors.white)),
+        content: Text(
+          "Permanently delete \"${song.title}\" from your device storage? This cannot be undone.",
+          style: const TextStyle(color: QiduTheme.textSecondary, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            child: const Text("Cancel", style: TextStyle(color: QiduTheme.textSecondary)),
+            onPressed: () => Navigator.pop(ctx, false),
+          ),
+          TextButton(
+            child: const Text("Delete", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final success = await manager.deleteSong(song);
+      if (mounted) {
+        if (success) {
+          setState(() {
+            _allSongs.removeWhere((s) => s.id == song.id);
+            _filteredSongs.removeWhere((s) => s.id == song.id);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Deleted ${song.title}"),
+              backgroundColor: QiduTheme.cardLighter,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Failed to delete file from device storage."),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final manager = context.read<AudioPlayerManager>();
 
     return Scaffold(
-      backgroundColor: AppleMusicTheme.backgroundBlack,
+      backgroundColor: QiduTheme.backgroundBlack,
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            // Apple Music Header
+            // Top Bar
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    "Library",
+                    "Qidu",
                     style: TextStyle(
-                      color: AppleMusicTheme.textPrimary,
+                      color: QiduTheme.textPrimary,
                       fontSize: 34,
                       fontWeight: FontWeight.bold,
                       letterSpacing: -0.8,
                     ),
                   ),
-                  TextButton(
-                    onPressed: _checkAndRequestPermissions,
-                    child: const Text(
-                      "Refresh",
-                      style: TextStyle(
-                        color: AppleMusicTheme.accentRed,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(CupertinoIcons.gear_alt, color: QiduTheme.textPrimary, size: 24),
+                        tooltip: "Settings",
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                          );
+                        },
                       ),
-                    ),
+                      IconButton(
+                        icon: const Icon(CupertinoIcons.arrow_clockwise, color: QiduTheme.accentColor, size: 22),
+                        tooltip: "Refresh Library",
+                        onPressed: _checkAndRequestPermissions,
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -152,25 +208,25 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Container(
                 height: 38,
                 decoration: BoxDecoration(
-                  color: AppleMusicTheme.cardDark,
+                  color: QiduTheme.cardDark,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: TextField(
                   controller: _searchController,
                   onChanged: _filterSongs,
                   style: const TextStyle(
-                    color: AppleMusicTheme.textPrimary,
+                    color: QiduTheme.textPrimary,
                     fontSize: 15,
                   ),
                   decoration: const InputDecoration(
-                    hintText: "Search in library...",
+                    hintText: "Search songs, artists...",
                     hintStyle: TextStyle(
-                      color: AppleMusicTheme.textSecondary,
+                      color: QiduTheme.textSecondary,
                       fontSize: 15,
                     ),
                     prefixIcon: Icon(
                       CupertinoIcons.search,
-                      color: AppleMusicTheme.textSecondary,
+                      color: QiduTheme.textSecondary,
                       size: 18,
                     ),
                     border: InputBorder.none,
@@ -182,7 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 8),
 
-            // Songs List or Permission Prompt
+            // Songs List
             Expanded(
               child: _buildBody(manager),
             ),
@@ -200,7 +256,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_isLoading) {
       return const Center(
         child: CircularProgressIndicator(
-          color: AppleMusicTheme.accentRed,
+          color: QiduTheme.accentColor,
         ),
       );
     }
@@ -214,34 +270,33 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               const Icon(
                 CupertinoIcons.folder_badge_minus,
-                color: AppleMusicTheme.accentRed,
+                color: QiduTheme.accentColor,
                 size: 64,
               ),
               const SizedBox(height: 16),
               const Text(
-                "Access to Music Required",
+                "Access to Audio Required",
                 style: TextStyle(
-                  color: AppleMusicTheme.textPrimary,
+                  color: QiduTheme.textPrimary,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 8),
               const Text(
-                "Please grant permission so we can scan and play your local audio files.",
+                "Grant permission to scan and play high-fidelity local audio files on your device.",
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: AppleMusicTheme.textSecondary,
+                  color: QiduTheme.textSecondary,
                   fontSize: 14,
                 ),
               ),
               const SizedBox(height: 20),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppleMusicTheme.accentRed,
+                  backgroundColor: QiduTheme.accentColor,
                   foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(24),
                   ),
@@ -258,9 +313,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_filteredSongs.isEmpty) {
       return const Center(
         child: Text(
-          "No music files found",
+          "No local audio files found",
           style: TextStyle(
-            color: AppleMusicTheme.textSecondary,
+            color: QiduTheme.textSecondary,
             fontSize: 16,
           ),
         ),
@@ -274,8 +329,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final song = _filteredSongs[index];
 
         return ListTile(
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
           leading: ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: QueryArtworkWidget(
@@ -287,10 +341,10 @@ class _HomeScreenState extends State<HomeScreen> {
               nullArtworkWidget: Container(
                 width: 48,
                 height: 48,
-                color: AppleMusicTheme.cardDark,
+                color: QiduTheme.cardDark,
                 child: const Icon(
                   CupertinoIcons.music_note,
-                  color: AppleMusicTheme.textSecondary,
+                  color: QiduTheme.textSecondary,
                   size: 24,
                 ),
               ),
@@ -301,7 +355,7 @@ class _HomeScreenState extends State<HomeScreen> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: AppleMusicTheme.textPrimary,
+              color: QiduTheme.textPrimary,
               fontWeight: FontWeight.w600,
               fontSize: 15,
             ),
@@ -311,16 +365,43 @@ class _HomeScreenState extends State<HomeScreen> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: AppleMusicTheme.textSecondary,
+              color: QiduTheme.textSecondary,
               fontSize: 13,
             ),
           ),
-          trailing: Text(
-            _formatDuration(song.duration),
-            style: const TextStyle(
-              color: AppleMusicTheme.textSecondary,
-              fontSize: 12,
-            ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _formatDuration(song.duration),
+                style: const TextStyle(
+                  color: QiduTheme.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(CupertinoIcons.ellipsis, color: QiduTheme.textSecondary, size: 18),
+                color: QiduTheme.cardDark,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                onSelected: (val) {
+                  if (val == 'delete') {
+                    _deleteSong(manager, song);
+                  }
+                },
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(CupertinoIcons.trash, color: Colors.redAccent, size: 16),
+                        SizedBox(width: 8),
+                        Text("Delete", style: TextStyle(color: Colors.redAccent, fontSize: 14)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
           onTap: () {
             manager.setPlaylist(_filteredSongs, initialIndex: index);

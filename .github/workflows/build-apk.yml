@@ -1,4 +1,4 @@
-name: Build Kidu APK
+name: Build Qidu APK
 
 on:
   push:
@@ -42,7 +42,7 @@ jobs:
           cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml
           # Clean scaffold standard Flutter Android build files
           rm -rf android
-          flutter create . --org com.kidu --project-name kidu --platforms=android
+          flutter create . --org com.qidu --project-name qidu --platforms=android
           # Restore custom AndroidManifest.xml
           cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 
@@ -58,29 +58,30 @@ jobs:
       - name: Prepare Output
         run: |
           mkdir -p build-output
-          cp build/app/outputs/flutter-apk/app-release.apk build-output/kidu.apk
+          cp build/app/outputs/flutter-apk/app-release.apk build-output/qidu.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kidu-apk
-          path: build-output/kidu.apk
+          name: qidu-apk
+          path: build-output/qidu.apk
           retention-days: 30
 
       - name: Create GitHub Release
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/devv'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0-${{ github.sha }}
-          name: Kidu Release v1.0.0 (Flutter Native APK)
+          tag_name: v1.1.0-${{ github.sha }}
+          name: Qidu Release v1.1.0 (Studio Lossless APK)
           make_latest: true
           body: |
-            ## Kidu - Local Music Player with Hardware Equalizer
-            - Apple Music UI Aesthetic with OLED dark mode & dynamic album gradient blur
-            - 10-Band Hardware Equalizer + Presets
-            - Local library query with permissions for Android 13+ and legacy storage
-            - Background playback notification & lock screen controls
-            - Download `kidu.apk` di bawah dan pasang langsung di HP Android.
-          files: build-output/kidu.apk
+            ## Qidu - Studio Offline Audio Player with Hardware Equalizer
+            - **Lossless & Hi-Res Lossless Audio**: Bit-for-bit studio audio resolution up to 24-bit/192 kHz (FLAC, ALAC, WAV).
+            - **Sound Check & Crossfade**: Intelligent volume normalization and smooth transitions between songs.
+            - **Playback Controls**: Full Shuffle, Loop (All/One/Off), and Sleep Timer with End-of-Track auto stop.
+            - **Local Audio Management**: Delete audio files permanently with safety confirmation.
+            - **10-Band Graphic Equalizer**: Hardware DSP audio effects with custom and tuned presets.
+            - Download `qidu.apk` di bawah dan pasang langsung di HP Android.
+          files: build-output/qidu.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

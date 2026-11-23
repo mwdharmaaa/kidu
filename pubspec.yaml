@@ -1,5 +1,5 @@
-name: kidu
-description: "Kidu - Local audio player with hardware Equalizer for Android"
+name: qidu
+description: "Qidu - Modern offline audio player with studio-grade equalizer for Android"
 publish_to: 'none'
 version: 1.0.0+1
 

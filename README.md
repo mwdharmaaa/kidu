@@ -1,56 +1,63 @@
-# Kidu - Local Music Player with Hardware Equalizer (Flutter Android)
+# Qidu - Studio Offline Audio Player (Flutter Android)
 
-**Kidu** adalah aplikasi pemutar musik lokal modern untuk Android yang memadukan estetika Apple Music (OLED dark mode, dynamic album art color blur, frosted glass mini player) dengan keandalan equalizer hardware native Android.
+**Qidu** adalah aplikasi pemutar musik lokal resolusi tinggi untuk Android dengan antarmuka modern bernuansa *fluid ambient blur*, kontrol pemutaran lengkap, serta dukungan equalizer hardware native.
 
 ---
 
 ## 🚀 Fitur Utama
 
-1. **Apple Music Visual Design**:
-   - Dynamic Mesh Gradient Background yang otomatis berubah warna mengikuti cover album lagu yang sedang diputar (`palette_generator`).
-   - Frosted glass blur effect pada Mini Player (`BackdropFilter`).
-   - Modern scrubbing timeline slider.
-   - Clean SF-styled typography & icon sets (`cupertino_icons`).
+### 1. Kualitas Audio Lossless & Hi-Res
+- **Lossless Audio**: Decoding audio resolusi tinggi hingga 24-bit/48 kHz (FLAC, ALAC, WAV).
+- **Hi-Res Lossless**: Format bit-for-bit tanpa kompresi hingga 24-bit/192 kHz.
+- **Badge Audio Dinamis**: Indikator kualitas interaktif (*LOSSLESS*, *HI-RES LOSSLESS*, *HIGH QUALITY*) di layar pemutar.
 
-2. **10-Band Hardware Equalizer (`just_audio` AndroidEqualizer)**:
-   - Terhubung langsung ke hardware audio Android (`AudioPipeline` + `AndroidEqualizer`).
-   - Preset lengkap bawaan Android (*Flat, Rock, Pop, Hip Hop, Jazz, Classical, Heavy Metal*, dll.).
-   - Slider grafik vertikal per-frekuensi (60 Hz s/d 14 kHz) dengan penunjuk decibel (-15 dB s/d +15 dB).
-   - Master switch toggle (ON/OFF) & tombol Reset to Flat.
+### 2. Pengaturan Audio Lengkap
+- **Sound Check (Normalisasi Volume)**: Menyeimbangkan tingkat kenyaringan suara antar-lagu secara otomatis.
+- **Crossfade**: Transisi transparan dan halus antar-lagu (dapat diatur 1–12 detik).
+- **Gapless Playback**: Menghilangkan jeda sunyi antar-trek pada album konsep atau rekaman konser.
+- **Sleep Timer**: Pengatur waktu mati otomatis (15 menit, 30 menit, 1 jam, atau di akhir trek yang sedang diputar).
 
-3. **Background Playback & Lock Screen Notification**:
-   - Didukung oleh `just_audio_background` (`audio_service`).
-   - Kontrol Play, Pause, Next, Previous langsung dari Android Notification Bar & Lock Screen.
+### 3. Kontrol Pemutaran & Manajemen File
+- **Shuffle & Loop**: Pengacakan daftar putar dan mode pengulangan (Repeat All, Repeat One, Off).
+- **Delete Audio**: Hapus berkas lagu yang tidak diinginkan langsung dari memori penyimpanan dengan dialog konfirmasi aman.
+- **Pencarian Cepat**: Cari lagu dan artis dalam pustaka lokal secara instan.
 
-4. **Media Library Scanner**:
-   - Menggunakan `on_audio_query` untuk memindai audio lokal dan thumbnail cover art secara cepat.
-   - Menangani izin penyimpanan Android 13+ (`READ_MEDIA_AUDIO`) dan Android 12 ke bawah (`READ_EXTERNAL_STORAGE`).
+### 4. 10-Band Hardware Equalizer
+- Terhubung langsung ke hardware audio Android (`AudioPipeline` + `AndroidEqualizer`).
+- Preset terkalibrasi (*Flat, Bass Booster, Bass Reducer, Classical, Electronic, Hip-Hop, Pop, Rock, Vocal Booster*).
+- Slider grafik vertikal per-frekuensi (60 Hz s/d 14 kHz) dengan penunjuk decibel (-15 dB s/d +15 dB).
+
+### 5. Background Playback & Lock Screen
+- Kontrol pemutaran di bar notifikasi dan lock screen dengan `just_audio_background`.
+- Latar belakang gradasi dinamis yang beradaptasi dengan palet warna cover lagu.
 
 ---
 
 ## 📁 Struktur Direktori
 
 ```
-kidu/
+qidu/
 ├── android/
 │   └── app/src/main/
 │       └── AndroidManifest.xml   <-- Izin storage, audio service & notification
 ├── lib/
-│   ├── main.dart                 <-- Inisialisasi background service & App root (KiduApp)
+│   ├── main.dart                 <-- Inisialisasi background service & QiduApp
 │   ├── theme/
-│   │   └── apple_music_theme.dart<-- Palet warna & dark theme Apple Music
+│   │   └── qidu_theme.dart       <-- Palet warna OLED Dark & aksen Qidu
 │   ├── services/
 │   │   └── audio_player_manager.dart <-- Core audio player & equalizer engine
 │   └── views/
 │       ├── home/
 │       │   └── home_screen.dart   <-- Library musik & pencarian lagu
 │       ├── player/
-│       │   ├── player_screen.dart <-- Fullscreen player dengan background dinamis
+│       │   ├── player_screen.dart <-- Fullscreen player dengan badge Lossless
 │       │   └── widgets/
 │       │       └── mini_player.dart <-- Floating frosted-glass mini player
-│       └── equalizer/
-│           └── equalizer_screen.dart <-- Tampilan 10-band equalizer & presets
-└── pubspec.yaml                  <-- Konfigurasi dependensi Kidu
+│       ├── equalizer/
+│       │   └── equalizer_screen.dart <-- Tampilan 10-band equalizer & presets
+│       └── settings/
+│           └── settings_screen.dart  <-- Pengaturan Lossless, Sound Check, Crossfade, Timer
+└── pubspec.yaml                  <-- Konfigurasi dependensi Qidu
 ```
 
 ---
@@ -59,11 +66,11 @@ kidu/
 
 ```bash
 # 1. Masuk ke direktori project
-cd kidu
+cd qidu
 
 # 2. Ambil semua dependencies
 flutter pub get
 
-# 3. Hubungkan perangkat Android / Emulator dan jalankan
+# 3. Jalankan di perangkat Android / Emulator
 flutter run
 ```
