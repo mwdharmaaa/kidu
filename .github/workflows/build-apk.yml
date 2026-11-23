@@ -1,4 +1,4 @@
-name: Build Music Player APK
+name: Build Kidu APK
 
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
           # Backup custom AndroidManifest with AudioService & Equalizer permissions
           cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml
           # Scaffold standard Flutter Android build files
-          flutter create . --org com.example --project-name music_player_app --platforms=android
+          flutter create . --org com.kidu --project-name kidu --platforms=android
           # Restore custom AndroidManifest.xml
           cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 
@@ -54,13 +54,13 @@ jobs:
       - name: Prepare Output
         run: |
           mkdir -p build-output
-          cp build/app/outputs/flutter-apk/app-release.apk build-output/music-player.apk
+          cp build/app/outputs/flutter-apk/app-release.apk build-output/kidu.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: music-player-apk
-          path: build-output/music-player.apk
+          name: kidu-apk
+          path: build-output/kidu.apk
           retention-days: 30
 
       - name: Create GitHub Release
@@ -68,15 +68,15 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.0-${{ github.sha }}
-          name: Music Player Release v1.0.0 (Apple Music Clone)
+          name: Kidu Release v1.0.0 (Flutter Native APK)
           make_latest: true
           body: |
-            ## Apple Music Clone - Local Player with Hardware Equalizer
+            ## Kidu - Local Music Player with Hardware Equalizer
             - Apple Music UI Aesthetic with OLED dark mode & dynamic album gradient blur
             - 10-Band Hardware Equalizer + Presets
             - Local library query with permissions for Android 13+ and legacy storage
             - Background playback notification & lock screen controls
-            - Download `music-player.apk` di bawah dan install langsung di HP Android.
-          files: build-output/music-player.apk
+            - Download `kidu.apk` di bawah dan pasang langsung di HP Android.
+          files: build-output/kidu.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,6 +1,6 @@
-# Apple Music Clone - Local Player with Hardware Equalizer (Flutter Android)
+# Kidu - Local Music Player with Hardware Equalizer (Flutter Android)
 
-A modern, fluid local music player built with Flutter, designed with the Apple Music aesthetic (OLED dark mode, dynamic album art color blur, frosted glass mini player) and powered by Android's native hardware equalizer.
+**Kidu** adalah aplikasi pemutar musik lokal modern untuk Android yang memadukan estetika Apple Music (OLED dark mode, dynamic album art color blur, frosted glass mini player) dengan keandalan equalizer hardware native Android.
 
 ---
 
@@ -31,12 +31,12 @@ A modern, fluid local music player built with Flutter, designed with the Apple M
 ## 📁 Struktur Direktori
 
 ```
-music_player_app/
+kidu/
 ├── android/
 │   └── app/src/main/
 │       └── AndroidManifest.xml   <-- Izin storage, audio service & notification
 ├── lib/
-│   ├── main.dart                 <-- Inisialisasi background service & App root
+│   ├── main.dart                 <-- Inisialisasi background service & App root (KiduApp)
 │   ├── theme/
 │   │   └── apple_music_theme.dart<-- Palet warna & dark theme Apple Music
 │   ├── services/
@@ -50,18 +50,16 @@ music_player_app/
 │       │       └── mini_player.dart <-- Floating frosted-glass mini player
 │       └── equalizer/
 │           └── equalizer_screen.dart <-- Tampilan 10-band equalizer & presets
-└── pubspec.yaml                  <-- Konfigurasi dependensi Flutter
+└── pubspec.yaml                  <-- Konfigurasi dependensi Kidu
 ```
 
 ---
 
 ## 🛠️ Cara Menjalankan Project
 
-Pastikan Flutter SDK sudah terpasang di perangkat kamu:
-
 ```bash
 # 1. Masuk ke direktori project
-cd music_player_app
+cd kidu
 
 # 2. Ambil semua dependencies
 flutter pub get

@@ -1,5 +1,5 @@
-name: music_player_app
-description: "Apple Music styled local audio player with hardware Equalizer for Android"
+name: kidu
+description: "Kidu - Local audio player with hardware Equalizer for Android"
 publish_to: 'none'
 version: 1.0.0+1
 

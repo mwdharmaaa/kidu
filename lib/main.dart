@@ -9,10 +9,10 @@ import 'views/home/home_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize background audio playback service & notification
+  // Initialize background audio playback service & notification for Kidu
   await JustAudioBackground.init(
-    androidNotificationChannelId: 'com.example.music_player_app.audio',
-    androidNotificationChannelName: 'Music Playback',
+    androidNotificationChannelId: 'com.kidu.app.audio',
+    androidNotificationChannelName: 'Kidu Playback',
     androidNotificationOngoing: true,
     androidStopForegroundOnPause: true,
   );
@@ -27,18 +27,18 @@ Future<void> main() async {
     ),
   );
 
-  runApp(const AppleMusicApp());
+  runApp(const KiduApp());
 }
 
-class AppleMusicApp extends StatelessWidget {
-  const AppleMusicApp({super.key});
+class KiduApp extends StatelessWidget {
+  const KiduApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<AudioPlayerManager>(
       create: (_) => AudioPlayerManager(),
       child: MaterialApp(
-        title: 'Apple Music Clone',
+        title: 'Kidu',
         debugShowCheckedModeBanner: false,
         theme: AppleMusicTheme.darkTheme,
         home: const HomeScreen(),
