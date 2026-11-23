@@ -65,30 +65,35 @@ jobs:
       - name: Prepare Output
         run: |
           mkdir -p build-output
+          cp build/app/outputs/flutter-apk/app-release.apk build-output/qidu-1.2.apk
           cp build/app/outputs/flutter-apk/app-release.apk build-output/qidu.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: qidu-apk
-          path: build-output/qidu.apk
+          name: qidu-1.2-apk
+          path: build-output/qidu-1.2.apk
           retention-days: 30
 
       - name: Create GitHub Release
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/devv'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.1.0-${{ github.sha }}
-          name: Qidu Release v1.1.0 (Studio Lossless APK)
+          tag_name: v1.2.0-${{ github.sha }}
+          name: Qidu 1.2 (Instant Equalizer & Studio Lossless)
           make_latest: true
           body: |
-            ## Qidu - Studio Offline Audio Player with Hardware Equalizer
-            - **Lossless & Hi-Res Lossless Audio**: Bit-for-bit studio audio resolution up to 24-bit/192 kHz (FLAC, ALAC, WAV).
-            - **Sound Check & Crossfade**: Intelligent volume normalization and smooth transitions between songs.
-            - **Playback Controls**: Full Shuffle, Loop (All/One/Off), and Sleep Timer with End-of-Track auto stop.
-            - **Local Audio Management**: Delete audio files permanently with safety confirmation.
-            - **10-Band Graphic Equalizer**: Hardware DSP audio effects with custom and tuned presets.
-            - Download `qidu.apk` di bawah dan pasang langsung di HP Android.
-          files: build-output/qidu.apk
+            ## Qidu 1.2 - Studio Offline Audio Player
+            - **⚡ Instant Equalizer**: Diperbaiki total! Menu Equalizer kini terbuka seketika (0 ms) tanpa loading dan slider merespons secara real-time.
+            - **🏷️ Versi Jelas**: Nama aplikasi di layar Android kini berlabel **Qidu 1.2** agar mudah membedakan versi terbaru.
+            - **🎵 Lossless & Hi-Res Lossless**: Resolusi hingga 24-bit/192 kHz dengan badge format audio interaktif.
+            - **⚙️ Pengaturan Lengkap**: Sound Check (Normalisasi Volume), Crossfade (1-12s), Gapless Playback, dan Sleep Timer.
+            - **🔀 Kontrol Penuh**: Shuffle, Loop Mode, dan Hapus Berkas Audio dari memori dengan konfirmasi aman.
+            - **🎨 Ikon Resmi**: Ikon minimalis resmi Qidu terpasang di launcher Android.
+            
+            Unduh file `qidu-1.2.apk` (atau `qidu.apk`) di bawah dan pasang di HP Android kamu.
+          files: |
+            build-output/qidu-1.2.apk
+            build-output/qidu.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

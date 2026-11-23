@@ -12,6 +12,18 @@ class EqualizerPreset {
   const EqualizerPreset(this.name, this.gains);
 }
 
+class EqualizerBandInfo {
+  final int index;
+  final double centerFrequency;
+  double gain;
+
+  EqualizerBandInfo({
+    required this.index,
+    required this.centerFrequency,
+    this.gain = 0.0,
+  });
+}
+
 enum AudioQualityTier {
   highQuality, // High Quality AAC 256 kbps
   lossless, // Lossless up to 24-bit/48 kHz (ALAC/FLAC)
@@ -46,10 +58,20 @@ class AudioPlayerManager extends ChangeNotifier {
   Color _dominantColor = const Color(0xFF1C1C1E);
   Color _secondaryColor = const Color(0xFF000000);
 
-  // Equalizer State
+  // Equalizer State - Instant Pre-cached In-Memory Data
   bool _isEqualizerEnabled = true;
   AndroidEqualizerParameters? _equalizerParameters;
   String _currentPresetName = "Flat";
+  double _minDecibels = -15.0;
+  double _maxDecibels = 15.0;
+
+  List<EqualizerBandInfo> _bands = [
+    EqualizerBandInfo(index: 0, centerFrequency: 60.0),
+    EqualizerBandInfo(index: 1, centerFrequency: 230.0),
+    EqualizerBandInfo(index: 2, centerFrequency: 910.0),
+    EqualizerBandInfo(index: 3, centerFrequency: 3600.0),
+    EqualizerBandInfo(index: 4, centerFrequency: 14000.0),
+  ];
 
   // Audio Settings
   bool _isSoundCheckEnabled = true;
@@ -92,8 +114,10 @@ class AudioPlayerManager extends ChangeNotifier {
   Color get secondaryColor => _secondaryColor;
 
   bool get isEqualizerEnabled => _isEqualizerEnabled;
-  AndroidEqualizerParameters? get equalizerParameters => _equalizerParameters;
   String get currentPresetName => _currentPresetName;
+  List<EqualizerBandInfo> get bands => _bands;
+  double get minDecibels => _minDecibels;
+  double get maxDecibels => _maxDecibels;
 
   bool get isSoundCheckEnabled => _isSoundCheckEnabled;
   bool get isCrossfadeEnabled => _isCrossfadeEnabled;
@@ -115,12 +139,26 @@ class AudioPlayerManager extends ChangeNotifier {
     final pipeline = AudioPipeline(androidAudioEffects: [_equalizer]);
     _player = AudioPlayer(audioPipeline: pipeline);
 
-    try {
-      await _equalizer.setEnabled(_isEqualizerEnabled);
-      _equalizerParameters = await _equalizer.parameters;
-    } catch (e) {
-      debugPrint("Equalizer effect not available: $e");
-    }
+    // Asynchronously connect to hardware equalizer parameters without blocking UI
+    _equalizer.setEnabled(_isEqualizerEnabled).then((_) {
+      return _equalizer.parameters;
+    }).then((params) {
+      _equalizerParameters = params;
+      _minDecibels = params.minDecibels;
+      _maxDecibels = params.maxDecibels;
+      if (params.bands.isNotEmpty) {
+        _bands = params.bands.asMap().entries.map((entry) {
+          return EqualizerBandInfo(
+            index: entry.key,
+            centerFrequency: entry.value.centerFrequency,
+            gain: entry.value.gain,
+          );
+        }).toList();
+        notifyListeners();
+      }
+    }).catchError((e) {
+      debugPrint("Hardware equalizer non-blocking init: $e");
+    });
 
     _player.currentIndexStream.listen((index) {
       if (index != null && index >= 0 && index < _playlist.length) {
@@ -316,7 +354,7 @@ class AudioPlayerManager extends ChangeNotifier {
     );
   }
 
-  // --- AUDIO SETTINGS (SOUND CHECK, CROSSFADE, QUALITY) ---
+  // --- AUDIO SETTINGS ---
 
   void setSoundCheck(bool enabled) {
     _isSoundCheckEnabled = enabled;
@@ -411,55 +449,56 @@ class AudioPlayerManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- EQUALIZER METHODS ---
+  // --- INSTANT EQUALIZER METHODS ---
 
   Future<void> toggleEqualizer(bool enabled) async {
     _isEqualizerEnabled = enabled;
+    notifyListeners();
     try {
       await _equalizer.setEnabled(enabled);
     } catch (e) {
       debugPrint("Error toggling equalizer: $e");
     }
+  }
+
+  void setBandGain(int bandIndex, double gain) {
+    if (bandIndex >= 0 && bandIndex < _bands.length) {
+      _bands[bandIndex].gain = gain;
+      _currentPresetName = "Custom";
+      notifyListeners();
+    }
+
+    if (_equalizerParameters != null &&
+        bandIndex < _equalizerParameters!.bands.length) {
+      _equalizerParameters!.bands[bandIndex].setGain(gain).catchError((e) {
+        debugPrint("Background setGain error: $e");
+      });
+    }
+  }
+
+  void applyPreset(EqualizerPreset preset) {
+    _currentPresetName = preset.name;
+    for (int i = 0; i < _bands.length; i++) {
+      final gain = (i < preset.gains.length) ? preset.gains[i] : 0.0;
+      final clampedGain = gain.clamp(_minDecibels, _maxDecibels);
+      _bands[i].gain = clampedGain;
+
+      if (_equalizerParameters != null &&
+          i < _equalizerParameters!.bands.length) {
+        _equalizerParameters!.bands[i].setGain(clampedGain).catchError((e) {
+          debugPrint("Background applyPreset error: $e");
+        });
+      }
+    }
     notifyListeners();
   }
 
-  Future<void> setBandGain(int bandIndex, double gain) async {
-    if (_equalizerParameters == null) return;
-    try {
-      final band = _equalizerParameters!.bands[bandIndex];
-      await band.setGain(gain);
-      _currentPresetName = "Custom";
-      notifyListeners();
-    } catch (e) {
-      debugPrint("Error setting band gain: $e");
-    }
-  }
-
-  Future<void> applyPreset(EqualizerPreset preset) async {
-    if (_equalizerParameters == null) return;
-    try {
-      _currentPresetName = preset.name;
-      final bands = _equalizerParameters!.bands;
-      for (int i = 0; i < bands.length; i++) {
-        final gain = (i < preset.gains.length) ? preset.gains[i] : 0.0;
-        final clampedGain = gain.clamp(
-          _equalizerParameters!.minDecibels,
-          _equalizerParameters!.maxDecibels,
-        );
-        await bands[i].setGain(clampedGain);
-      }
-      notifyListeners();
-    } catch (e) {
-      debugPrint("Error applying preset: $e");
-    }
-  }
-
-  Future<void> resetToFlat() async {
+  void resetToFlat() {
     final flatPreset = defaultPresets.firstWhere(
       (p) => p.name == "Flat",
       orElse: () => const EqualizerPreset("Flat", [0.0]),
     );
-    await applyPreset(flatPreset);
+    applyPreset(flatPreset);
   }
 
   @override

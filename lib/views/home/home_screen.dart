@@ -184,7 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(width: 10),
                       const Text(
-                        "Qidu",
+                        "Qidu 1.2",
                         style: TextStyle(
                           color: QiduTheme.textPrimary,
                           fontSize: 32,
