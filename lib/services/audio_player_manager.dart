@@ -5,6 +5,12 @@ import 'package:just_audio_background/just_audio_background.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:palette_generator/palette_generator.dart';
 
+class EqualizerPreset {
+  final String name;
+  final List<double> gains;
+  const EqualizerPreset(this.name, this.gains);
+}
+
 class AudioPlayerManager extends ChangeNotifier {
   late final AudioPlayer _player;
   late final AndroidEqualizer _equalizer;
@@ -18,6 +24,18 @@ class AudioPlayerManager extends ChangeNotifier {
   bool _isEqualizerEnabled = true;
   AndroidEqualizerParameters? _equalizerParameters;
   String _currentPresetName = "Flat";
+
+  static const List<EqualizerPreset> defaultPresets = [
+    EqualizerPreset("Flat", [0.0, 0.0, 0.0, 0.0, 0.0]),
+    EqualizerPreset("Bass Booster", [5.0, 3.5, 0.0, 0.0, 0.0]),
+    EqualizerPreset("Bass Reducer", [-5.0, -3.5, 0.0, 0.0, 0.0]),
+    EqualizerPreset("Classical", [4.0, 2.5, -1.0, 2.5, 3.5]),
+    EqualizerPreset("Electronic", [4.5, 2.5, 0.0, 2.0, 4.0]),
+    EqualizerPreset("Hip-Hop", [5.5, 3.0, 0.0, 1.5, 3.0]),
+    EqualizerPreset("Pop", [-1.5, 2.0, 4.5, 2.0, -1.0]),
+    EqualizerPreset("Rock", [4.5, 2.5, -1.5, 2.5, 4.5]),
+    EqualizerPreset("Vocal Booster", [-2.5, 2.0, 5.0, 3.0, 0.0]),
+  ];
 
   AudioPlayerManager() {
     _initAudio();
@@ -40,12 +58,10 @@ class AudioPlayerManager extends ChangeNotifier {
   String get currentPresetName => _currentPresetName;
 
   Future<void> _initAudio() async {
-    // 1. Setup hardware equalizer for Android
     _equalizer = AndroidEqualizer();
     final pipeline = AudioPipeline(androidAudioEffects: [_equalizer]);
     _player = AudioPlayer(audioPipeline: pipeline);
 
-    // 2. Enable equalizer by default
     try {
       await _equalizer.setEnabled(_isEqualizerEnabled);
       _equalizerParameters = await _equalizer.parameters;
@@ -53,7 +69,6 @@ class AudioPlayerManager extends ChangeNotifier {
       debugPrint("Equalizer not supported on this platform: $e");
     }
 
-    // 3. Listen to index change for artwork palette extraction
     _player.currentIndexStream.listen((index) {
       if (index != null && index >= 0 && index < _playlist.length) {
         _currentIndex = index;
@@ -81,7 +96,7 @@ class AudioPlayerManager extends ChangeNotifier {
           album: song.album ?? "Unknown Album",
           title: song.title,
           artist: song.artist ?? "Unknown Artist",
-          artUri: Uri.file(song.data), // can point to thumbnail or cache
+          artUri: Uri.file(song.data),
         ),
       );
     }).toList();
@@ -126,11 +141,10 @@ class AudioPlayerManager extends ChangeNotifier {
     _player.seek(position);
   }
 
-  // --- PALETTE EXTRACTION (Apple Music Dynamic Background) ---
+  // --- PALETTE EXTRACTION ---
 
   Future<void> _extractPalette(SongModel song) async {
     try {
-      // Query artwork bytes
       final artworkBytes = await _audioQuery.queryArtwork(
         song.id,
         ArtworkType.AUDIO,
@@ -152,7 +166,6 @@ class AudioPlayerManager extends ChangeNotifier {
             palette.mutedColor?.color ??
             const Color(0xFF000000);
       } else {
-        // Fallback modern dark palette
         _dominantColor = const Color(0xFF202028);
         _secondaryColor = const Color(0xFF0A0A0D);
       }
@@ -187,29 +200,31 @@ class AudioPlayerManager extends ChangeNotifier {
     }
   }
 
-  Future<void> applyPreset(AndroidEqualizerPreset preset) async {
+  Future<void> applyPreset(EqualizerPreset preset) async {
+    if (_equalizerParameters == null) return;
     try {
-      await _equalizer.setPreset(preset);
       _currentPresetName = preset.name;
-      // Refresh parameters
-      _equalizerParameters = await _equalizer.parameters;
+      final bands = _equalizerParameters!.bands;
+      for (int i = 0; i < bands.length; i++) {
+        final gain = (i < preset.gains.length) ? preset.gains[i] : 0.0;
+        final clampedGain = gain.clamp(
+          _equalizerParameters!.minDecibels,
+          _equalizerParameters!.maxDecibels,
+        );
+        await bands[i].setGain(clampedGain);
+      }
       notifyListeners();
     } catch (e) {
-      debugPrint("Error setting preset: $e");
+      debugPrint("Error applying preset: $e");
     }
   }
 
   Future<void> resetToFlat() async {
-    if (_equalizerParameters == null) return;
-    try {
-      for (final band in _equalizerParameters!.bands) {
-        await band.setGain(0.0);
-      }
-      _currentPresetName = "Flat";
-      notifyListeners();
-    } catch (e) {
-      debugPrint("Error resetting equalizer: $e");
-    }
+    final flatPreset = defaultPresets.firstWhere(
+      (p) => p.name == "Flat",
+      orElse: () => const EqualizerPreset("Flat", [0.0]),
+    );
+    await applyPreset(flatPreset);
   }
 
   @override

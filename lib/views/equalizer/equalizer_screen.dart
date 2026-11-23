@@ -13,11 +13,11 @@ class EqualizerScreen extends StatefulWidget {
 }
 
 class _EqualizerScreenState extends State<EqualizerScreen> {
-  String _formatFreq(int hz) {
+  String _formatFreq(double hz) {
     if (hz >= 1000) {
       return "${(hz / 1000).toStringAsFixed(1).replaceAll('.0', '')} kHz";
     }
-    return "$hz Hz";
+    return "${hz.toInt()} Hz";
   }
 
   @override
@@ -95,7 +95,7 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
           final minDb = params.minDecibels;
           final maxDb = params.maxDecibels;
           final bands = params.bands;
-          final presets = params.presets;
+          const presets = AudioPlayerManager.defaultPresets;
 
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -299,7 +299,7 @@ class _EqualizerScreenState extends State<EqualizerScreen> {
                                   // Vertical Slider
                                   Expanded(
                                     child: RotatedBox(
-                                      quarterTurns: 3, // Vertical orientation
+                                      quarterTurns: 3,
                                       child: SliderTheme(
                                         data: SliderTheme.of(context).copyWith(
                                           trackHeight: 4,

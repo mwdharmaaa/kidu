@@ -324,7 +324,7 @@ class PlayerScreen extends StatelessWidget {
                       ),
                       IconButton(
                         icon: const Icon(
-                          CupertinoIcons.airplayaudio,
+                          Icons.devices_rounded,
                           color: AppleMusicTheme.textSecondary,
                           size: 22,
                         ),
