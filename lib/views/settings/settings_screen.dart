@@ -260,18 +260,28 @@ class SettingsScreen extends StatelessWidget {
           Center(
             child: Column(
               children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.asset(
+                    'assets/icon/logo.png',
+                    width: 64,
+                    height: 64,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 const Text(
                   "Qidu Audio",
                   style: TextStyle(
                     color: QiduTheme.textPrimary,
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                    fontSize: 18,
                     letterSpacing: 0.5,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  "Version 1.0.0 • Studio Lossless Player",
+                  "Version 1.1.0 • Studio Lossless Player",
                   style: TextStyle(
                     color: QiduTheme.textSecondary.withOpacity(0.8),
                     fontSize: 12,

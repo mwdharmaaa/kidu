@@ -46,6 +46,13 @@ jobs:
           # Restore custom AndroidManifest.xml
           cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 
+          # Inject Qidu logo into Android launcher mipmap icons
+          for dir in android/app/src/main/res/mipmap-*; do
+            cp assets/icon/logo.png "$dir/ic_launcher.png"
+            cp assets/icon/logo.png "$dir/ic_launcher_round.png" 2>/dev/null || true
+          done
+          echo "[OK] Injected official Qidu icon into Android launcher mipmaps"
+
       - name: Install Dependencies
         run: flutter pub get
 
