@@ -47,32 +47,56 @@ jobs:
           cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 
           # Ensure app level build.gradle targets Java 17 & JVM 17
-          sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' android/app/build.gradle
-          sed -i "s/jvmTarget = '1.8'/jvmTarget = '17'/g" android/app/build.gradle || true
+          python3 -c '
+          path = "android/app/build.gradle"
+          with open(path, "r", encoding="utf-8") as f:
+              content = f.read()
+          content = content.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
+          content = content.replace("jvmTarget = \x271.8\x27", "jvmTarget = \x2717\x27")
+          content = content.replace("jvmTarget = \"1.8\"", "jvmTarget = \"17\"")
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(content)
+          print("[OK] Configured android/app/build.gradle for Java 17")
+          '
 
       - name: Install Dependencies
         run: flutter pub get
 
       - name: Patch plugins for AGP 8 & Java 17
         run: |
-          # 1. Update all plugins in pub-cache to Java 17
-          find /home/runner/.pub-cache -name "build.gradle" | while read -r file; do
-            sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' "$file"
-          done
+          python3 -c '
+          import glob
 
-          # 2. Patch on_audio_query namespace and kotlinOptions
-          find /home/runner/.pub-cache -name "build.gradle" -path "*on_audio_query_android*" | while read -r file; do
-            if ! grep -q "namespace" "$file"; then
-              sed -i 's/android {/android {\n    namespace "com.lucasjosino.on_audio_query"/' "$file"
-              echo "[OK] Patched namespace in $file"
-            fi
-            if ! grep -q "kotlinOptions" "$file"; then
-              sed -i '/compileOptions {/i \ \ \ \ kotlinOptions {\n        jvmTarget = "17"\n    }' "$file"
-              echo "[OK] Added kotlinOptions to $file"
-            else
-              sed -i "s/jvmTarget = '[^']*'/jvmTarget = '17'/g" "$file"
-            fi
-          done
+          # 1. Update on_audio_query_android
+          for path in glob.glob("/home/runner/.pub-cache/hosted/pub.dev/on_audio_query_android-*/android/build.gradle"):
+              with open(path, "r", encoding="utf-8") as f:
+                  content = f.read()
+              
+              if "namespace" not in content:
+                  patch = """android {
+      namespace "com.lucasjosino.on_audio_query"
+      compileOptions {
+          sourceCompatibility JavaVersion.VERSION_17
+          targetCompatibility JavaVersion.VERSION_17
+      }
+      kotlinOptions {
+          jvmTarget = "17"
+      }"""
+                  content = content.replace("android {", patch, 1)
+                  with open(path, "w", encoding="utf-8") as f:
+                      f.write(content)
+                  print(f"[OK] Successfully patched on_audio_query at {path}")
+
+          # 2. Update any other plugins with JavaVersion.VERSION_1_8 to 17
+          for path in glob.glob("/home/runner/.pub-cache/hosted/pub.dev/*/android/build.gradle"):
+              with open(path, "r", encoding="utf-8") as f:
+                  content = f.read()
+              if "JavaVersion.VERSION_1_8" in content:
+                  content = content.replace("JavaVersion.VERSION_1_8", "JavaVersion.VERSION_17")
+                  with open(path, "w", encoding="utf-8") as f:
+                      f.write(content)
+                  print(f"[OK] Upgraded Java version to 17 in {path}")
+          '
 
       - name: Build Android Release APK
         run: flutter build apk --release --no-tree-shake-icons
