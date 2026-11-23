@@ -1,0 +1,82 @@
+name: Build Music Player APK
+
+on:
+  push:
+    branches:
+      - main
+      - devv
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: 'distribution'
+  cancel-in-progress: false
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java Development Kit
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.27.1'
+          channel: 'stable'
+          cache: true
+
+      - name: Prepare Android Project
+        run: |
+          # Backup custom AndroidManifest with AudioService & Equalizer permissions
+          cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml
+          # Scaffold standard Flutter Android build files
+          flutter create . --org com.example --project-name music_player_app --platforms=android
+          # Restore custom AndroidManifest.xml
+          cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build Android Release APK
+        run: flutter build apk --release --no-tree-shake-icons
+
+      - name: Prepare Output
+        run: |
+          mkdir -p build-output
+          cp build/app/outputs/flutter-apk/app-release.apk build-output/music-player.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: music-player-apk
+          path: build-output/music-player.apk
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/devv'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0-${{ github.sha }}
+          name: Music Player Release v1.0.0 (Apple Music Clone)
+          make_latest: true
+          body: |
+            ## Apple Music Clone - Local Player with Hardware Equalizer
+            - Apple Music UI Aesthetic with OLED dark mode & dynamic album gradient blur
+            - 10-Band Hardware Equalizer + Presets
+            - Local library query with permissions for Android 13+ and legacy storage
+            - Background playback notification & lock screen controls
+            - Download `music-player.apk` di bawah dan install langsung di HP Android.
+          files: build-output/music-player.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
