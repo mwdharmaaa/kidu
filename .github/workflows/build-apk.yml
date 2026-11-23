@@ -46,15 +46,31 @@ jobs:
           # Restore custom AndroidManifest.xml
           cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 
+          # Ensure app level build.gradle targets Java 17 & JVM 17
+          sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' android/app/build.gradle
+          sed -i "s/jvmTarget = '1.8'/jvmTarget = '17'/g" android/app/build.gradle || true
+
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Patch on_audio_query namespace for AGP 8
+      - name: Patch plugins for AGP 8 & Java 17
         run: |
+          # 1. Update all plugins in pub-cache to Java 17
+          find /home/runner/.pub-cache -name "build.gradle" | while read -r file; do
+            sed -i 's/JavaVersion.VERSION_1_8/JavaVersion.VERSION_17/g' "$file"
+          done
+
+          # 2. Patch on_audio_query namespace and kotlinOptions
           find /home/runner/.pub-cache -name "build.gradle" -path "*on_audio_query_android*" | while read -r file; do
             if ! grep -q "namespace" "$file"; then
               sed -i 's/android {/android {\n    namespace "com.lucasjosino.on_audio_query"/' "$file"
               echo "[OK] Patched namespace in $file"
+            fi
+            if ! grep -q "kotlinOptions" "$file"; then
+              sed -i '/compileOptions {/i \ \ \ \ kotlinOptions {\n        jvmTarget = "17"\n    }' "$file"
+              echo "[OK] Added kotlinOptions to $file"
+            else
+              sed -i "s/jvmTarget = '[^']*'/jvmTarget = '17'/g" "$file"
             fi
           done
 
