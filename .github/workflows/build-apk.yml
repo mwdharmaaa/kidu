@@ -40,7 +40,8 @@ jobs:
         run: |
           # Backup custom AndroidManifest with AudioService & Equalizer permissions
           cp android/app/src/main/AndroidManifest.xml /tmp/AndroidManifest.xml
-          # Scaffold standard Flutter Android build files
+          # Clean scaffold standard Flutter Android build files
+          rm -rf android
           flutter create . --org com.kidu --project-name kidu --platforms=android
           # Restore custom AndroidManifest.xml
           cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
