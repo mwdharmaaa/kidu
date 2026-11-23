@@ -46,8 +46,38 @@ jobs:
           # Restore custom AndroidManifest.xml
           cp /tmp/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 
+          # Ensure root build.gradle handles missing namespaces for AGP 8+
+          cat << 'EOF' >> android/build.gradle
+
+          subprojects {
+              afterEvaluate { project ->
+                  if (project.hasProperty('android')) {
+                      project.android {
+                          if (namespace == null) {
+                              namespace project.group ?: "com.lucasjosino.on_audio_query"
+                          }
+                      }
+                  }
+                  if (project.name == "on_audio_query_android") {
+                      project.android {
+                          namespace "com.lucasjosino.on_audio_query"
+                      }
+                  }
+              }
+          }
+          EOF
+
       - name: Install Dependencies
         run: flutter pub get
+
+      - name: Patch on_audio_query namespace for AGP 8
+        run: |
+          find /home/runner/.pub-cache -name "build.gradle" -path "*on_audio_query_android*" | while read -r file; do
+            if ! grep -q "namespace" "$file"; then
+              sed -i 's/android {/android {\n    namespace "com.lucasjosino.on_audio_query"/' "$file"
+              echo "[OK] Patched namespace in $file"
+            fi
+          done
 
       - name: Build Android Release APK
         run: flutter build apk --release --no-tree-shake-icons
