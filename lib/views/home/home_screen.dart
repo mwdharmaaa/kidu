@@ -876,7 +876,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       onTap: () {
-        manager.setPlaylist(playlistContext, initialIndex: index);
+        if (_searchController.text.isNotEmpty && _allSongs.isNotEmpty) {
+          final fullIndex = _allSongs.indexWhere((s) => s.id == song.id);
+          manager.setPlaylist(_allSongs, initialIndex: fullIndex != -1 ? fullIndex : 0);
+        } else {
+          manager.setPlaylist(playlistContext, initialIndex: index);
+        }
       },
     );
   }

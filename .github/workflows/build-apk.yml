@@ -76,22 +76,29 @@ jobs:
           retention-days: 30
 
       - name: Create GitHub Release
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/devv'
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.3.0-${{ github.sha }}
-          name: Qidu 1.3 (Apple Music Polish - Lyrics, Queue, Library & Tag Editor)
+          tag_name: v1.3.0
+          name: Qidu 1.3 - Pemutar Musik Apple Music Studio
           make_latest: true
           body: |
-            ## Qidu 1.3 - Complete Apple Music Studio Offline Experience
-            - **📜 Lirik Lagu Terintegrasi (.lrc)**: Tampilan lirik bergaya karaoke Apple Music dengan auto-scroll dan penanda waktu aktif. Dukungan file `.lrc` lokal dan input lirik manual.
-            - **📑 Antrean Putar (Up Next Queue)**: Kelola daftar lagu yang sedang dan akan diputar, bisa atur ulang urutan (*reorder drag-and-drop*) atau hapus lagu dari antrean.
-            - **🎨 Animasi Cover Membal & Volume Slider**: Cover album membal (*spring bounce*) saat play/pause dan kontrol volume langsung di layar pemutar.
-            - **❤️ Sistem Lagu Favorit**: Tandai lagu favorit dengan ikon hati dan temukan di tab khusus Favorit.
-            - **🗂️ Kategori Perpustakaan Lengkap**: Navigasi pil Apple Music untuk memfilter lagu berdasarkan Semua Lagu, Favorit, Artis, dan Album Grid.
-            - **✏️ Tag / Metadata Editor**: Ubah judul lagu, artis, dan album langsung dari aplikasi agar koleksi MP3 Anda tetap rapi.
-            - **⚡ Instant 5-Band Equalizer & Studio Lossless**: Presets audio studio dan pemutaran lossless bit-perfect tetap siap dinikmati.
-            
+            ## Qidu 1.3 - Apple Music Studio Offline
+            Pembaruan terbaru dengan bilah notifikasi media lengkap dan fitur studio Apple Music offline.
+
+            ### ✨ Fitur Baru & Perbaikan:
+            - **⏮️ Kontrol Bar Notifikasi Lengkap**:
+              - Tombol **Sebelumnya (⏮)** dan **Berikutnya (⏭)** selalu aktif dan responsif.
+              - Tombol urutan putar: **Acak (🔀)** dan **Ulang/Loop (🔁)** langsung dari bar notifikasi.
+              - Tombol Stop (■) yang tidak berguna telah dihapus sepenuhnya.
+              - Tampilan metadata judul, artis, dan sampul album tajam & akurat.
+            - **📜 Lirik Lagu Apple Music (.lrc)**: Tampilan lirik karaoke sinkron otomatis dengan file `.lrc` lokal dan editor lirik manual.
+            - **📑 Antrean Putar (Up Next Queue)**: Atur ulang antrean lagu dengan drag-and-drop.
+            - **❤️ Lagu Favorit & Filter Perpustakaan**: Tab Semua Lagu, Favorit, Artis, dan Album Grid.
+            - **✏️ Tag & Metadata Editor**: Edit informasi judul, artis, dan album lagu MP3.
+            - **⚡ Studio Equalizer 5-Band**: Preset audio studio & lossless bit-perfect playback.
+            - **🗑️ Hapus Berkas Aman**: Izin penyimpanan Android 11+ terintegrasi.
+
             Unduh file `qidu-1.3.apk` (atau `qidu.apk`) di bawah dan pasang di HP Android kamu.
           files: |
             build-output/qidu-1.3.apk

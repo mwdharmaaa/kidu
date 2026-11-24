@@ -211,6 +211,25 @@ class AudioPlayerManager extends ChangeNotifier {
     _playlist = List.from(songs);
     _currentIndex = initialIndex;
 
+    // Immediately cache artwork for target song to ensure notification has artwork instantly
+    if (initialIndex >= 0 && initialIndex < songs.length) {
+      final initialSong = songs[initialIndex];
+      final artFile = File('${Directory.systemTemp.path}/art_${initialSong.id}.jpg');
+      if (!artFile.existsSync()) {
+        try {
+          final artBytes = await _audioQuery.queryArtwork(
+            initialSong.id,
+            ArtworkType.AUDIO,
+            format: ArtworkFormat.JPEG,
+            size: 300,
+          );
+          if (artBytes != null && artBytes.isNotEmpty) {
+            await artFile.writeAsBytes(artBytes);
+          }
+        } catch (_) {}
+      }
+    }
+
     final audioSources = songs.map((song) {
       final title = getSongTitle(song);
       final artist = getSongArtist(song);
@@ -246,6 +265,24 @@ class AudioPlayerManager extends ChangeNotifier {
       if (_currentIndex >= 0 && _currentIndex < _playlist.length) {
         _extractPalette(_playlist[_currentIndex]);
       }
+      Future.microtask(() async {
+        for (final s in songs) {
+          final f = File('${Directory.systemTemp.path}/art_${s.id}.jpg');
+          if (!f.existsSync()) {
+            try {
+              final bytes = await _audioQuery.queryArtwork(
+                s.id,
+                ArtworkType.AUDIO,
+                format: ArtworkFormat.JPEG,
+                size: 300,
+              );
+              if (bytes != null && bytes.isNotEmpty) {
+                await f.writeAsBytes(bytes);
+              }
+            } catch (_) {}
+          }
+        }
+      });
     } catch (e) {
       debugPrint("Error loading playlist: $e");
     }
