@@ -401,33 +401,48 @@ class PlayerScreen extends StatelessWidget {
 
                   const SizedBox(height: 8),
 
-                  // Transport Controls (Shuffle, Previous, Play/Pause, Next, Loop)
+                  // Transport Controls (Unified Mode Button, Previous, Play/Pause, Next, Queue)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      // Shuffle Button
-                      IconButton(
-                        icon: Icon(
-                          CupertinoIcons.shuffle,
-                          color: manager.isShuffleEnabled
-                              ? QiduTheme.accentColor
-                              : QiduTheme.textSecondary,
-                          size: 22,
-                        ),
-                        tooltip: manager.shuffleModeDescription,
-                        onPressed: () async {
-                          final msg = await manager.toggleShuffle();
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(msg),
-                                duration: const Duration(milliseconds: 1000),
-                                behavior: SnackBarBehavior.floating,
-                                backgroundColor: QiduTheme.cardDark,
-                              ),
-                            );
+                      // Single Unified Mode Button: Berurutan -> Loop -> Shuffle
+                      Builder(
+                        builder: (ctx) {
+                          IconData modeIcon;
+                          Color modeColor;
+                          switch (manager.playbackOrderMode) {
+                            case PlaybackOrderMode.sequential:
+                              modeIcon = Icons.playlist_play;
+                              modeColor = QiduTheme.textSecondary;
+                              break;
+                            case PlaybackOrderMode.loop:
+                              modeIcon = CupertinoIcons.repeat;
+                              modeColor = QiduTheme.accentColor;
+                              break;
+                            case PlaybackOrderMode.shuffle:
+                              modeIcon = CupertinoIcons.shuffle;
+                              modeColor = QiduTheme.accentColor;
+                              break;
                           }
+
+                          return IconButton(
+                            icon: Icon(modeIcon, color: modeColor, size: 24),
+                            tooltip: manager.playbackOrderModeDescription,
+                            onPressed: () async {
+                              final msg = await manager.cyclePlaybackOrderMode();
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(msg),
+                                    duration: const Duration(milliseconds: 1000),
+                                    behavior: SnackBarBehavior.floating,
+                                    backgroundColor: QiduTheme.cardDark,
+                                  ),
+                                );
+                              }
+                            },
+                          );
                         },
                       ),
 
@@ -475,31 +490,21 @@ class PlayerScreen extends StatelessWidget {
                         onPressed: () => manager.skipToNext(),
                       ),
 
-                      // Loop / Repeat Button
+                      // Up Next Queue Button
                       IconButton(
-                        icon: Icon(
-                          manager.loopMode == LoopMode.one
-                              ? CupertinoIcons.repeat_1
-                              : CupertinoIcons.repeat,
-                          color: manager.loopMode != LoopMode.off
-                              ? QiduTheme.accentColor
-                              : QiduTheme.textSecondary,
+                        icon: const Icon(
+                          CupertinoIcons.list_bullet,
+                          color: QiduTheme.textSecondary,
                           size: 22,
                         ),
-                        tooltip: "Mode: ${manager.loopModeDescription}",
-                        onPressed: () async {
-                          final msg = await manager.toggleLoopMode();
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(msg),
-                                duration: const Duration(milliseconds: 1000),
-                                behavior: SnackBarBehavior.floating,
-                                backgroundColor: QiduTheme.cardDark,
-                              ),
-                            );
-                          }
+                        tooltip: "Antrean Lagu",
+                        onPressed: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => const QueueSheet(),
+                          );
                         },
                       ),
                     ],

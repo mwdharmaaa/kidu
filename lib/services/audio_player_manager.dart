@@ -41,6 +41,12 @@ enum AudioQualityTier {
   hiResLossless, // Hi-Res Lossless up to 24-bit/192 kHz
 }
 
+enum PlaybackOrderMode {
+  sequential, // Berurutan: loopMode = off, shuffle = false
+  loop,       // Loop: loopMode = all, shuffle = false
+  shuffle,    // Shuffle: loopMode = all, shuffle = true
+}
+
 class AudioQualityInfo {
   final String badgeText;
   final String formatDescription;
@@ -162,7 +168,8 @@ class AudioPlayerManager extends ChangeNotifier {
     _equalizer = AndroidEqualizer();
     final pipeline = AudioPipeline(androidAudioEffects: [_equalizer]);
     _player = AudioPlayer(audioPipeline: pipeline);
-    _player.setLoopMode(LoopMode.all);
+    _player.setLoopMode(LoopMode.off);
+    _player.setShuffleModeEnabled(false);
 
     // Asynchronously connect to hardware equalizer parameters without blocking UI
     _equalizer.setEnabled(_isEqualizerEnabled).then((_) {
@@ -324,52 +331,61 @@ class AudioPlayerManager extends ChangeNotifier {
     _player.seek(position);
   }
 
-  // --- SHUFFLE & LOOP CONTROLS ---
+  // --- SHUFFLE & LOOP CONTROLS (SINGLE UNIFIED MODE) ---
 
-  String get loopModeDescription {
-    switch (_player.loopMode) {
-      case LoopMode.off:
-        return "Berurutan";
-      case LoopMode.all:
-        return "Ulang Semua";
-      case LoopMode.one:
-        return "Ulang 1 Lagu";
+  PlaybackOrderMode get playbackOrderMode {
+    if (_player.shuffleModeEnabled) {
+      return PlaybackOrderMode.shuffle;
+    }
+    if (_player.loopMode != LoopMode.off) {
+      return PlaybackOrderMode.loop;
+    }
+    return PlaybackOrderMode.sequential;
+  }
+
+  String get playbackOrderModeDescription {
+    switch (playbackOrderMode) {
+      case PlaybackOrderMode.sequential:
+        return "Mode: Berurutan";
+      case PlaybackOrderMode.loop:
+        return "Mode: Loop (Ulang Semua)";
+      case PlaybackOrderMode.shuffle:
+        return "Mode: Acak (Shuffle)";
     }
   }
 
-  String get shuffleModeDescription {
-    return _player.shuffleModeEnabled ? "Acak: Aktif" : "Acak: Mati";
-  }
+  String get loopModeDescription => playbackOrderModeDescription;
+  String get shuffleModeDescription => playbackOrderModeDescription;
 
-  Future<String> toggleShuffle() async {
-    final enable = !_player.shuffleModeEnabled;
-    if (enable) {
-      await _player.shuffle();
-    }
-    await _player.setShuffleModeEnabled(enable);
-    notifyListeners();
-    return enable ? "Mode Acak: Aktif" : "Mode Acak: Mati";
-  }
-
-  Future<String> toggleLoopMode() async {
-    String desc;
-    switch (_player.loopMode) {
-      case LoopMode.off:
+  Future<String> cyclePlaybackOrderMode() async {
+    final current = playbackOrderMode;
+    String message;
+    switch (current) {
+      case PlaybackOrderMode.sequential:
+        // Berurutan -> Loop
+        await _player.setShuffleModeEnabled(false);
         await _player.setLoopMode(LoopMode.all);
-        desc = "Mode Putar: Ulang Semua";
+        message = "Mode Putar: Loop (Ulang Semua)";
         break;
-      case LoopMode.all:
-        await _player.setLoopMode(LoopMode.one);
-        desc = "Mode Putar: Ulang 1 Lagu";
+      case PlaybackOrderMode.loop:
+        // Loop -> Shuffle
+        await _player.shuffle();
+        await _player.setShuffleModeEnabled(true);
+        message = "Mode Putar: Acak (Shuffle)";
         break;
-      case LoopMode.one:
+      case PlaybackOrderMode.shuffle:
+        // Shuffle -> Berurutan
+        await _player.setShuffleModeEnabled(false);
         await _player.setLoopMode(LoopMode.off);
-        desc = "Mode Putar: Berurutan";
+        message = "Mode Putar: Berurutan";
         break;
     }
     notifyListeners();
-    return desc;
+    return message;
   }
+
+  Future<String> toggleShuffle() => cyclePlaybackOrderMode();
+  Future<String> toggleLoopMode() => cyclePlaybackOrderMode();
 
   // --- DELETE AUDIO FILE ---
 
