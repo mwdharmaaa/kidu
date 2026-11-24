@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../services/audio_player_manager.dart';
 import '../../theme/qidu_theme.dart';
@@ -632,35 +634,73 @@ class PlayerScreen extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: QiduTheme.cardDark,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text("Delete Audio File?", style: TextStyle(color: Colors.white)),
+        title: const Text("Hapus Berkas Audio?", style: TextStyle(color: Colors.white)),
         content: Text(
-          "Permanently delete \"${song.title}\" from your device storage? This action cannot be undone.",
+          "Hapus \"${manager.getSongTitle(song)}\" secara permanen dari penyimpanan perangkat? Tindakan ini tidak dapat dibatalkan.",
           style: const TextStyle(color: QiduTheme.textSecondary, fontSize: 14),
         ),
         actions: [
           TextButton(
-            child: const Text("Cancel", style: TextStyle(color: QiduTheme.textSecondary)),
+            child: const Text("Batal", style: TextStyle(color: QiduTheme.textSecondary)),
             onPressed: () => Navigator.pop(ctx),
           ),
           TextButton(
-            child: const Text("Delete", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            child: const Text("Hapus", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
             onPressed: () async {
               Navigator.pop(ctx);
+
+              if (Platform.isAndroid) {
+                var manageGranted = await Permission.manageExternalStorage.isGranted;
+                if (!manageGranted) {
+                  final status = await Permission.manageExternalStorage.request();
+                  manageGranted = status.isGranted;
+                }
+
+                if (!manageGranted) {
+                  var storageGranted = await Permission.storage.isGranted;
+                  if (!storageGranted) {
+                    final s = await Permission.storage.request();
+                    storageGranted = s.isGranted;
+                  }
+                  manageGranted = storageGranted;
+                }
+
+                if (!manageGranted && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text("Izin kelola berkas diperlukan untuk menghapus lagu."),
+                      backgroundColor: Colors.redAccent,
+                      action: SnackBarAction(
+                        label: "Pengaturan",
+                        textColor: Colors.white,
+                        onPressed: () => openAppSettings(),
+                      ),
+                    ),
+                  );
+                  return;
+                }
+              }
+
               final success = await manager.deleteSong(song);
               if (context.mounted) {
                 if (success) {
                   Navigator.of(context).pop(); // Exit player screen
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text("Deleted ${song.title}"),
+                      content: Text("Berhasil menghapus ${manager.getSongTitle(song)}"),
                       backgroundColor: QiduTheme.cardLighter,
                     ),
                   );
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Failed to delete file. Check storage permission."),
+                    SnackBar(
+                      content: const Text("Gagal menghapus berkas dari penyimpanan perangkat."),
                       backgroundColor: Colors.redAccent,
+                      action: SnackBarAction(
+                        label: "Pengaturan",
+                        textColor: Colors.white,
+                        onPressed: () => openAppSettings(),
+                      ),
                     ),
                   );
                 }

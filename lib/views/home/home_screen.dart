@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
@@ -110,6 +111,68 @@ class _HomeScreenState extends State<HomeScreen> {
     return "$minutes:$seconds";
   }
 
+  Future<bool> _ensureStorageManagePermission() async {
+    if (!Platform.isAndroid) return true;
+
+    // 1. Check MANAGE_EXTERNAL_STORAGE (Android 11+)
+    var status = await Permission.manageExternalStorage.status;
+    if (status.isGranted) return true;
+
+    // Request MANAGE_EXTERNAL_STORAGE
+    status = await Permission.manageExternalStorage.request();
+    if (status.isGranted) return true;
+
+    // 2. Check standard storage permission (Android 10 & below)
+    var storageStatus = await Permission.storage.status;
+    if (!storageStatus.isGranted) {
+      storageStatus = await Permission.storage.request();
+      if (storageStatus.isGranted) return true;
+    }
+
+    if (!mounted) return false;
+
+    // Prompt user to enable in settings if not granted
+    final openSettings = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: QiduTheme.cardDark,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(CupertinoIcons.folder_badge_minus, color: QiduTheme.accentColor),
+            SizedBox(width: 10),
+            Text("Izin Kelola Berkas", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          "Untuk menghapus berkas lagu langsung dari memori HP di Android 11 ke atas, sistem Android mewajibkan izin \"Akses semua file\". Buka Pengaturan untuk mengaktifkan izin ini?",
+          style: TextStyle(color: QiduTheme.textSecondary, fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            child: const Text("Batal", style: TextStyle(color: QiduTheme.textSecondary)),
+            onPressed: () => Navigator.pop(ctx, false),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: QiduTheme.accentColor,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text("Buka Pengaturan"),
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    );
+
+    if (openSettings == true) {
+      await openAppSettings();
+    }
+
+    return false;
+  }
+
   void _deleteSong(AudioPlayerManager manager, SongModel song) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -134,7 +197,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    if (confirmed == true) {
+    if (confirmed == true && mounted) {
+      final hasPermission = await _ensureStorageManagePermission();
+      if (!hasPermission && mounted) return;
+
       final success = await manager.deleteSong(song);
       if (mounted) {
         if (success) {
@@ -150,9 +216,14 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Gagal menghapus berkas dari penyimpanan perangkat."),
+            SnackBar(
+              content: const Text("Gagal menghapus berkas. Pastikan izin akses file diberikan."),
               backgroundColor: Colors.redAccent,
+              action: SnackBarAction(
+                label: "Pengaturan",
+                textColor: Colors.white,
+                onPressed: () => openAppSettings(),
+              ),
             ),
           );
         }

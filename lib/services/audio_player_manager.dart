@@ -293,18 +293,38 @@ class AudioPlayerManager extends ChangeNotifier {
 
   Future<bool> deleteSong(SongModel song) async {
     try {
+      final indexToRemove = _playlist.indexWhere((s) => s.id == song.id);
+      final isCurrent = indexToRemove != -1 && indexToRemove == _currentIndex;
+
+      if (isCurrent) {
+        await _player.stop();
+      }
+
       final file = File(song.data);
       if (await file.exists()) {
         await file.delete();
       }
 
-      final indexToRemove = _playlist.indexWhere((s) => s.id == song.id);
+      // Clean up companion .lrc file if present
+      final dot = song.data.lastIndexOf('.');
+      if (dot != -1) {
+        final lrc = File('${song.data.substring(0, dot)}.lrc');
+        if (await lrc.exists()) {
+          try {
+            await lrc.delete();
+          } catch (_) {}
+        }
+      }
+
+      // Remove from local cache
+      _favoriteIds.remove(song.id);
+      _metadataOverrides.remove(song.id);
+      await _saveLocalData();
+
       if (indexToRemove != -1) {
-        final isCurrent = indexToRemove == _currentIndex;
         _playlist.removeAt(indexToRemove);
 
         if (_playlist.isEmpty) {
-          await _player.stop();
           _currentIndex = -1;
         } else if (isCurrent) {
           if (_currentIndex >= _playlist.length) {
