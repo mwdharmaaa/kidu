@@ -89,21 +89,45 @@ def patch():
                 f.write(content)
             print(f"[OK] Upgraded Java version to 17 in {path}")
 
-    # 5. Patch AudioService.java for notification shuffle and loop support
+    # 5. Patch AudioService.java for notification shuffle, loop, and sequential support
     for path in glob.glob(f"{pub_cache}/hosted/pub.dev/audio_service-*/android/src/main/java/com/ryanheise/audioservice/AudioService.java"):
         with open(path, "r", encoding="utf-8") as f:
             content = f.read()
 
+        # Constants
+        old_constants = "    public static final int MAX_COMPACT_ACTIONS = 3;"
+        new_constants = """    public static final int MAX_COMPACT_ACTIONS = 3;
+    public static final String ACTION_TOGGLE_SHUFFLE = "com.ryanheise.audioservice.action.TOGGLE_SHUFFLE";
+    public static final String ACTION_TOGGLE_REPEAT = "com.ryanheise.audioservice.action.TOGGLE_REPEAT";"""
+        if old_constants in content and "ACTION_TOGGLE_SHUFFLE" not in content:
+            content = content.replace(old_constants, new_constants)
+            print(f"[OK] Added constants in {path}")
+
+        # AUTO_ENABLED_ACTIONS: remove STOP, enable SKIP_TO_PREVIOUS and SKIP_TO_NEXT
+        old_auto = """    private static final long AUTO_ENABLED_ACTIONS = PlaybackStateCompat.ACTION_STOP
+            | PlaybackStateCompat.ACTION_PAUSE
+            | PlaybackStateCompat.ACTION_PLAY
+            | PlaybackStateCompat.ACTION_REWIND
+            // Auto-enabling these is bad for Android Auto since it forces the
+            // previous/next buttons to always show.
+            //| PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
+            //| PlaybackStateCompat.ACTION_SKIP_TO_NEXT"""
+        new_auto = """    private static final long AUTO_ENABLED_ACTIONS = PlaybackStateCompat.ACTION_PAUSE
+            | PlaybackStateCompat.ACTION_PLAY
+            | PlaybackStateCompat.ACTION_REWIND
+            | PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
+            | PlaybackStateCompat.ACTION_SKIP_TO_NEXT"""
+        if old_auto in content:
+            content = content.replace(old_auto, new_auto)
+            print(f"[OK] Patched AUTO_ENABLED_ACTIONS in {path}")
+
+        # createAction: ensure PendingIntent for shuffle and repeat buttons
         old_create_action = """    NotificationCompat.Action createAction(String resource, String label, long actionCode) {
         int iconId = getResourceId(resource);
         return new NotificationCompat.Action(iconId, label,
                 buildMediaButtonPendingIntent(actionCode));
     }"""
-
-        new_create_action = """    public static final String ACTION_TOGGLE_SHUFFLE = "com.ryanheise.audioservice.action.TOGGLE_SHUFFLE";
-    public static final String ACTION_TOGGLE_REPEAT = "com.ryanheise.audioservice.action.TOGGLE_REPEAT";
-
-    NotificationCompat.Action createAction(String resource, String label, long actionCode) {
+        new_create_action = """    NotificationCompat.Action createAction(String resource, String label, long actionCode) {
         int iconId = getResourceId(resource);
         PendingIntent intent = buildMediaButtonPendingIntent(actionCode);
         if (intent == null) {
@@ -123,13 +147,80 @@ def patch():
         }
         return new NotificationCompat.Action(iconId, label, intent);
     }"""
+        if old_create_action in content:
+            content = content.replace(old_create_action, new_create_action)
+            print(f"[OK] Patched createAction in {path}")
 
+        # setState: inject custom actions for Android 11+ Quick Settings media controls
+        old_state = """        PlaybackStateCompat.Builder stateBuilder = new PlaybackStateCompat.Builder()
+                .setActions(AUTO_ENABLED_ACTIONS | actionBits)
+                .setState(getPlaybackState(), position, speed, updateTime)
+                .setBufferedPosition(bufferedPosition);"""
+        new_state = """        PlaybackStateCompat.Builder stateBuilder = new PlaybackStateCompat.Builder()
+                .setActions(AUTO_ENABLED_ACTIONS | actionBits)
+                .setState(getPlaybackState(), position, speed, updateTime)
+                .setBufferedPosition(bufferedPosition);
+
+        int shuffleIcon = getResourceId("drawable/ic_shuffle");
+        int repeatIcon = (repeatMode == PlaybackStateCompat.REPEAT_MODE_ONE)
+                ? getResourceId("drawable/ic_repeat_one")
+                : getResourceId("drawable/ic_repeat");
+
+        stateBuilder.addCustomAction(new PlaybackStateCompat.CustomAction.Builder(
+                ACTION_TOGGLE_SHUFFLE,
+                shuffleMode == PlaybackStateCompat.SHUFFLE_MODE_ALL ? "Acak (Aktif)" : "Acak (Mati)",
+                shuffleIcon).build());
+
+        String repeatLabel = (repeatMode == PlaybackStateCompat.REPEAT_MODE_ONE)
+                ? "Ulang Satu"
+                : (repeatMode == PlaybackStateCompat.REPEAT_MODE_ALL ? "Ulang Semua" : "Berurutan");
+        stateBuilder.addCustomAction(new PlaybackStateCompat.CustomAction.Builder(
+                ACTION_TOGGLE_REPEAT,
+                repeatLabel,
+                repeatIcon).build());"""
+        if old_state in content:
+            content = content.replace(old_state, new_state)
+            print(f"[OK] Patched setState custom actions in {path}")
+
+        # MediaSessionCallback.onCustomAction
+        old_on_custom = """        @Override
+        public void onCustomAction(String action, Bundle extras) {
+            if (listener == null) return;
+            listener.onCustomAction(action, extras);
+        }"""
+        new_on_custom = """        @Override
+        public void onCustomAction(String action, Bundle extras) {
+            if (ACTION_TOGGLE_SHUFFLE.equals(action)) {
+                int nextShuffle = (AudioService.this.shuffleMode == PlaybackStateCompat.SHUFFLE_MODE_ALL)
+                        ? PlaybackStateCompat.SHUFFLE_MODE_NONE
+                        : PlaybackStateCompat.SHUFFLE_MODE_ALL;
+                onSetShuffleMode(nextShuffle);
+                return;
+            } else if (ACTION_TOGGLE_REPEAT.equals(action)) {
+                int nextRepeat;
+                if (AudioService.this.repeatMode == PlaybackStateCompat.REPEAT_MODE_NONE) {
+                    nextRepeat = PlaybackStateCompat.REPEAT_MODE_ALL;
+                } else if (AudioService.this.repeatMode == PlaybackStateCompat.REPEAT_MODE_ALL) {
+                    nextRepeat = PlaybackStateCompat.REPEAT_MODE_ONE;
+                } else {
+                    nextRepeat = PlaybackStateCompat.REPEAT_MODE_NONE;
+                }
+                onSetRepeatMode(nextRepeat);
+                return;
+            }
+            if (listener == null) return;
+            listener.onCustomAction(action, extras);
+        }"""
+        if old_on_custom in content:
+            content = content.replace(old_on_custom, new_on_custom)
+            print(f"[OK] Patched MediaSessionCallback.onCustomAction in {path}")
+
+        # onStartCommand
         old_on_start = """    @Override
     public int onStartCommand(final Intent intent, int flags, int startId) {
         MediaButtonReceiver.handleIntent(mediaSession, intent);
         return START_NOT_STICKY;
     }"""
-
         new_on_start = """    @Override
     public int onStartCommand(final Intent intent, int flags, int startId) {
         if (intent != null) {
@@ -160,18 +251,17 @@ def patch():
         MediaButtonReceiver.handleIntent(mediaSession, intent);
         return START_NOT_STICKY;
     }"""
-
-        if old_create_action in content:
-            content = content.replace(old_create_action, new_create_action)
-            print(f"[OK] Patched createAction in {path}")
         if old_on_start in content:
             content = content.replace(old_on_start, new_on_start)
             print(f"[OK] Patched onStartCommand in {path}")
 
+        # Notification style cancel button
+        content = content.replace("style.setShowCancelButton(true);", "style.setShowCancelButton(false);")
+
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    # 6. Patch just_audio_background.dart for full media notification bar controls
+    # 6. Patch just_audio_background.dart
     for path in glob.glob(f"{pub_cache}/hosted/pub.dev/just_audio_background-*/lib/just_audio_background.dart"):
         with open(path, "r", encoding="utf-8") as f:
             content = f.read()
@@ -213,7 +303,7 @@ def patch():
             content = content.replace(old_prev, new_prev)
             print(f"[OK] Patched skipToPrevious in {path}")
 
-        # Controls list: Shuffle, Previous, Play/Pause, Next, Loop (Remove Stop button!)
+        # Controls list and state broadcast
         old_broadcast = """  void _broadcastState() {
     final controls = [
       if (hasPrevious) MediaControl.skipToPrevious,
@@ -221,7 +311,6 @@ def patch():
       MediaControl.stop,
       if (hasNext) MediaControl.skipToNext,
     ];"""
-
         new_broadcast = """  void _broadcastState() {
     final shuffleControl = MediaControl(
       androidIcon: 'drawable/ic_shuffle',
@@ -244,16 +333,24 @@ def patch():
       MediaControl.skipToNext,
       repeatControl,
     ];"""
-
         if old_broadcast in content:
             content = content.replace(old_broadcast, new_broadcast)
             print(f"[OK] Patched controls in {path}")
+
+        old_state_add = """    playbackState.add(playbackState.nvalue!.copyWith(
+      controls: controls,"""
+        new_state_add = """    playbackState.add(playbackState.nvalue!.copyWith(
+      controls: controls,
+      repeatMode: _repeatMode,
+      shuffleMode: _shuffleMode,"""
+        if old_state_add in content:
+            content = content.replace(old_state_add, new_state_add)
+            print(f"[OK] Patched repeatMode & shuffleMode in playbackState in {path}")
 
         old_compact = """      androidCompactActionIndices: List.generate(controls.length, (i) => i)
           .where((i) => controls[i].action != MediaAction.stop)
           .toList(),"""
         new_compact = """      androidCompactActionIndices: const [1, 2, 3],"""
-
         if old_compact in content:
             content = content.replace(old_compact, new_compact)
             print(f"[OK] Patched compact action indices in {path}")

@@ -66,7 +66,6 @@ jobs:
         run: |
           mkdir -p build-output
           cp build/app/outputs/flutter-apk/app-release.apk build-output/qidu-1.3.apk
-          cp build/app/outputs/flutter-apk/app-release.apk build-output/qidu.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -83,25 +82,32 @@ jobs:
           name: Qidu 1.3 - Pemutar Musik Apple Music Studio
           make_latest: true
           body: |
-            ## Qidu 1.3 - Apple Music Studio Offline
-            Pembaruan terbaru dengan bilah notifikasi media lengkap dan fitur studio Apple Music offline.
+            ## Qidu 1.3 - Pemutar Musik Apple Music Studio
 
-            ### ✨ Fitur Baru & Perbaikan:
-            - **⏮️ Kontrol Bar Notifikasi Lengkap**:
-              - Tombol **Sebelumnya (⏮)** dan **Berikutnya (⏭)** selalu aktif dan responsif.
-              - Tombol urutan putar: **Acak (🔀)** dan **Ulang/Loop (🔁)** langsung dari bar notifikasi.
-              - Tombol Stop (■) yang tidak berguna telah dihapus sepenuhnya.
-              - Tampilan metadata judul, artis, dan sampul album tajam & akurat.
-            - **📜 Lirik Lagu Apple Music (.lrc)**: Tampilan lirik karaoke sinkron otomatis dengan file `.lrc` lokal dan editor lirik manual.
-            - **📑 Antrean Putar (Up Next Queue)**: Atur ulang antrean lagu dengan drag-and-drop.
-            - **❤️ Lagu Favorit & Filter Perpustakaan**: Tab Semua Lagu, Favorit, Artis, dan Album Grid.
-            - **✏️ Tag & Metadata Editor**: Edit informasi judul, artis, dan album lagu MP3.
-            - **⚡ Studio Equalizer 5-Band**: Preset audio studio & lossless bit-perfect playback.
-            - **🗑️ Hapus Berkas Aman**: Izin penyimpanan Android 11+ terintegrasi.
+            Pembaruan Qidu versi 1.3 dengan fitur kontrol urutan putar lengkap, bilah notifikasi media latar belakang, dan pengoptimalan performa audio.
 
-            Unduh file `qidu-1.3.apk` (atau `qidu.apk`) di bawah dan pasang di HP Android kamu.
+            ### Pembaruan dan Fitur Utama:
+            - Kontrol Pemutaran Lengkap:
+              - Dukungan mode Acak (Shuffle) untuk memutar lagu secara acak.
+              - Dukungan mode Ulang Semua (Loop All) untuk memutar ulang seluruh daftar lagu secara terus-menerus.
+              - Dukungan mode Ulang Satu (Loop One) untuk mengulang lagu yang sedang diputar.
+              - Dukungan mode Berurutan (Sequential) untuk memutar lagu sesuai urutan daftar hingga selesai.
+              - Tombol Sebelumnya (Previous) dan Berikutnya (Next) selalu aktif dan responsif.
+              - Tombol Stop pada bilah notifikasi telah dinonaktifkan agar tidak mengganggu navigasi.
+            - Bilah Notifikasi Media Latar Belakang:
+              - Integrasi MediaSession Android dengan tombol aksi kustom untuk Acak, Ulang, Sebelumnya, Putar/Jeda, dan Berikutnya.
+              - Tampilan metadata judul, artis, dan sampul album yang akurat langsung dari memori perangkat.
+            - Lirik Lagu Terintegrasi (.lrc):
+              - Sinkronisasi lirik bergaya karaoke Apple Music dengan auto-scroll dan penanda waktu aktif.
+            - Antrean Putar (Up Next Queue):
+              - Pengaturan urutan antrean putar dengan drag-and-drop dan kontrol mode putar langsung dari lembar antrean.
+            - Manajemen Perpustakaan Musik:
+              - Filter lagu berdasarkan Semua Lagu, Favorit, Artis, dan Album Grid.
+              - Editor metadata lagu (judul, artis, album) langsung dari aplikasi.
+              - Hapus berkas audio dengan izin penyimpanan Android 11 ke atas.
+
+            Unduh berkas qidu-1.3.apk di bawah untuk memasang pembaruan ini di perangkat Android Anda.
           files: |
             build-output/qidu-1.3.apk
-            build-output/qidu.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

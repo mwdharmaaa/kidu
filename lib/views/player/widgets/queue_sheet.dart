@@ -87,8 +87,47 @@ class QueueSheet extends StatelessWidget {
                                 : Colors.white60,
                             size: 22,
                           ),
-                          tooltip: "Shuffle Antrean",
-                          onPressed: () => manager.toggleShuffle(),
+                          tooltip: manager.shuffleModeDescription,
+                          onPressed: () async {
+                            final msg = await manager.toggleShuffle();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(msg),
+                                  duration: const Duration(milliseconds: 1000),
+                                  behavior: SnackBarBehavior.floating,
+                                  backgroundColor: QiduTheme.cardDark,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            manager.loopMode == LoopMode.one
+                                ? CupertinoIcons.repeat_1
+                                : CupertinoIcons.repeat,
+                            color: manager.loopMode != LoopMode.off
+                                ? QiduTheme.accentColor
+                                : Colors.white60,
+                            size: 22,
+                          ),
+                          tooltip: "Mode: ${manager.loopModeDescription}",
+                          onPressed: () async {
+                            final msg = await manager.toggleLoopMode();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(msg),
+                                  duration: const Duration(milliseconds: 1000),
+                                  behavior: SnackBarBehavior.floating,
+                                  backgroundColor: QiduTheme.cardDark,
+                                ),
+                              );
+                            }
+                          },
                         ),
                         IconButton(
                           icon: const Icon(

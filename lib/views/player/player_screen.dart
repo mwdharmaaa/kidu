@@ -414,7 +414,21 @@ class PlayerScreen extends StatelessWidget {
                               : QiduTheme.textSecondary,
                           size: 22,
                         ),
-                        onPressed: () => manager.toggleShuffle(),
+                        tooltip: manager.shuffleModeDescription,
+                        onPressed: () async {
+                          final msg = await manager.toggleShuffle();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(msg),
+                                duration: const Duration(milliseconds: 1000),
+                                behavior: SnackBarBehavior.floating,
+                                backgroundColor: QiduTheme.cardDark,
+                              ),
+                            );
+                          }
+                        },
                       ),
 
                       // Previous Track
@@ -472,7 +486,21 @@ class PlayerScreen extends StatelessWidget {
                               : QiduTheme.textSecondary,
                           size: 22,
                         ),
-                        onPressed: () => manager.toggleLoopMode(),
+                        tooltip: "Mode: ${manager.loopModeDescription}",
+                        onPressed: () async {
+                          final msg = await manager.toggleLoopMode();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(msg),
+                                duration: const Duration(milliseconds: 1000),
+                                behavior: SnackBarBehavior.floating,
+                                backgroundColor: QiduTheme.cardDark,
+                              ),
+                            );
+                          }
+                        },
                       ),
                     ],
                   ),

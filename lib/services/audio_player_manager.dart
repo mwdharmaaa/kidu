@@ -203,6 +203,9 @@ class AudioPlayerManager extends ChangeNotifier {
       }
       notifyListeners();
     });
+
+    _player.loopModeStream.listen((_) => notifyListeners());
+    _player.shuffleModeEnabledStream.listen((_) => notifyListeners());
   }
 
   // --- PLAYBACK CONTROLS ---
@@ -321,28 +324,49 @@ class AudioPlayerManager extends ChangeNotifier {
 
   // --- SHUFFLE & LOOP CONTROLS ---
 
-  Future<void> toggleShuffle() async {
+  String get loopModeDescription {
+    switch (_player.loopMode) {
+      case LoopMode.off:
+        return "Berurutan";
+      case LoopMode.all:
+        return "Ulang Semua";
+      case LoopMode.one:
+        return "Ulang 1 Lagu";
+    }
+  }
+
+  String get shuffleModeDescription {
+    return _player.shuffleModeEnabled ? "Acak: Aktif" : "Acak: Mati";
+  }
+
+  Future<String> toggleShuffle() async {
     final enable = !_player.shuffleModeEnabled;
     if (enable) {
       await _player.shuffle();
     }
     await _player.setShuffleModeEnabled(enable);
     notifyListeners();
+    return enable ? "Mode Acak: Aktif" : "Mode Acak: Mati";
   }
 
-  Future<void> toggleLoopMode() async {
+  Future<String> toggleLoopMode() async {
+    String desc;
     switch (_player.loopMode) {
       case LoopMode.off:
         await _player.setLoopMode(LoopMode.all);
+        desc = "Mode Putar: Ulang Semua";
         break;
       case LoopMode.all:
         await _player.setLoopMode(LoopMode.one);
+        desc = "Mode Putar: Ulang 1 Lagu";
         break;
       case LoopMode.one:
         await _player.setLoopMode(LoopMode.off);
+        desc = "Mode Putar: Berurutan";
         break;
     }
     notifyListeners();
+    return desc;
   }
 
   // --- DELETE AUDIO FILE ---
