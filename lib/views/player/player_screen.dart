@@ -8,6 +8,9 @@ import '../../services/audio_player_manager.dart';
 import '../../theme/qidu_theme.dart';
 import '../equalizer/equalizer_screen.dart';
 import '../settings/settings_screen.dart';
+import 'widgets/lyrics_sheet.dart';
+import 'widgets/queue_sheet.dart';
+import '../home/widgets/metadata_editor_dialog.dart';
 
 class PlayerScreen extends StatelessWidget {
   const PlayerScreen({super.key});
@@ -113,6 +116,11 @@ class PlayerScreen extends StatelessWidget {
                             Navigator.of(context).push(
                               MaterialPageRoute(builder: (_) => const SettingsScreen()),
                             );
+                          } else if (val == 'edit_tag') {
+                            showDialog(
+                              context: context,
+                              builder: (_) => MetadataEditorDialog(song: currentSong),
+                            );
                           } else if (val == 'delete') {
                             _confirmDelete(context, manager, currentSong);
                           } else if (val == 'quality') {
@@ -127,6 +135,16 @@ class PlayerScreen extends StatelessWidget {
                                 Icon(CupertinoIcons.waveform_circle, size: 18, color: QiduTheme.hiResGold),
                                 SizedBox(width: 12),
                                 Text("Audio Quality Info"),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'edit_tag',
+                            child: Row(
+                              children: [
+                                Icon(CupertinoIcons.pencil, size: 18, color: Colors.white),
+                                SizedBox(width: 12),
+                                Text("Edit Info Lagu"),
                               ],
                             ),
                           ),
@@ -168,38 +186,53 @@ class PlayerScreen extends StatelessWidget {
 
                   const Spacer(flex: 1),
 
-                  // Album Artwork with Shadow
-                  Container(
-                    width: artworkSize,
-                    height: artworkSize,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.45),
-                          blurRadius: 35,
-                          offset: const Offset(0, 20),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: QueryArtworkWidget(
-                        id: currentSong.id,
-                        type: ArtworkType.AUDIO,
-                        artworkWidth: artworkSize,
-                        artworkHeight: artworkSize,
-                        artworkFit: BoxFit.cover,
-                        nullArtworkWidget: Container(
-                          color: QiduTheme.cardLighter,
-                          child: Icon(
-                            CupertinoIcons.music_note,
-                            color: QiduTheme.textSecondary.withOpacity(0.5),
-                            size: 90,
+                  // Album Artwork with Bouncing Animation & Fluid Shadow
+                  StreamBuilder<bool>(
+                    stream: manager.player.playingStream,
+                    builder: (context, playingSnapshot) {
+                      final isPlaying = playingSnapshot.data ?? false;
+                      return AnimatedScale(
+                        scale: isPlaying ? 1.0 : 0.86,
+                        duration: const Duration(milliseconds: 350),
+                        curve: Curves.easeOutBack,
+                        child: AnimatedOpacity(
+                          opacity: isPlaying ? 1.0 : 0.82,
+                          duration: const Duration(milliseconds: 300),
+                          child: Container(
+                            width: artworkSize,
+                            height: artworkSize,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(isPlaying ? 0.5 : 0.25),
+                                  blurRadius: isPlaying ? 40 : 20,
+                                  offset: Offset(0, isPlaying ? 22 : 10),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: QueryArtworkWidget(
+                                id: currentSong.id,
+                                type: ArtworkType.AUDIO,
+                                artworkWidth: artworkSize,
+                                artworkHeight: artworkSize,
+                                artworkFit: BoxFit.cover,
+                                nullArtworkWidget: Container(
+                                  color: QiduTheme.cardLighter,
+                                  child: Icon(
+                                    CupertinoIcons.music_note,
+                                    color: QiduTheme.textSecondary.withOpacity(0.5),
+                                    size: 90,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
 
                   const Spacer(flex: 1),
@@ -216,7 +249,7 @@ class PlayerScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  currentSong.title,
+                                  manager.getSongTitle(currentSong),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
@@ -228,7 +261,7 @@ class PlayerScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  currentSong.artist ?? "Unknown Artist",
+                                  manager.getSongArtist(currentSong),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
@@ -241,12 +274,17 @@ class PlayerScreen extends StatelessWidget {
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(
-                              CupertinoIcons.star,
-                              color: QiduTheme.textSecondary,
-                              size: 22,
+                            icon: Icon(
+                              manager.isFavorite(currentSong.id)
+                                  ? CupertinoIcons.heart_fill
+                                  : CupertinoIcons.heart,
+                              color: manager.isFavorite(currentSong.id)
+                                  ? QiduTheme.accentColor
+                                  : QiduTheme.textSecondary,
+                              size: 24,
                             ),
-                            onPressed: () {},
+                            tooltip: "Favorit",
+                            onPressed: () => manager.toggleFavorite(currentSong.id),
                           ),
                         ],
                       ),
@@ -437,7 +475,43 @@ class PlayerScreen extends StatelessWidget {
                     ],
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
+
+                  // Apple Music Style Volume Slider
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        const Icon(CupertinoIcons.volume_down, color: QiduTheme.textSecondary, size: 16),
+                        Expanded(
+                          child: SliderTheme(
+                            data: SliderTheme.of(context).copyWith(
+                              activeTrackColor: Colors.white.withOpacity(0.65),
+                              inactiveTrackColor: Colors.white.withOpacity(0.14),
+                              thumbColor: Colors.white,
+                              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 4.5),
+                              trackHeight: 3,
+                            ),
+                            child: StreamBuilder<double>(
+                              stream: manager.volumeStream,
+                              builder: (context, volSnap) {
+                                final vol = volSnap.data ?? manager.volume;
+                                return Slider(
+                                  value: vol.clamp(0.0, 1.0),
+                                  min: 0.0,
+                                  max: 1.0,
+                                  onChanged: (val) => manager.setVolume(val),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        const Icon(CupertinoIcons.volume_up, color: QiduTheme.textSecondary, size: 16),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
 
                   // Bottom Utilities
                   Row(
@@ -445,10 +519,19 @@ class PlayerScreen extends StatelessWidget {
                     children: [
                       IconButton(
                         icon: const Icon(CupertinoIcons.quote_bubble, color: QiduTheme.textSecondary, size: 22),
-                        onPressed: () {},
+                        tooltip: "Lirik Lagu",
+                        onPressed: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => LyricsSheet(song: currentSong),
+                          );
+                        },
                       ),
                       IconButton(
                         icon: const Icon(Icons.devices_rounded, color: QiduTheme.textSecondary, size: 22),
+                        tooltip: "Pengaturan Audio",
                         onPressed: () {
                           Navigator.of(context).push(
                             MaterialPageRoute(builder: (_) => const SettingsScreen()),
@@ -457,7 +540,15 @@ class PlayerScreen extends StatelessWidget {
                       ),
                       IconButton(
                         icon: const Icon(CupertinoIcons.list_bullet, color: QiduTheme.textSecondary, size: 22),
-                        onPressed: () {},
+                        tooltip: "Antrean Lagu",
+                        onPressed: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => const QueueSheet(),
+                          );
+                        },
                       ),
                     ],
                   ),

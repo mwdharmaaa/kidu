@@ -96,7 +96,7 @@ class MiniPlayer extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              currentSong.title,
+                              manager.getSongTitle(currentSong),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -107,7 +107,7 @@ class MiniPlayer extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              currentSong.artist ?? "Unknown Artist",
+                              manager.getSongArtist(currentSong),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(

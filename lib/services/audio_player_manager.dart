@@ -1,10 +1,21 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:palette_generator/palette_generator.dart';
+
+class LyricLine {
+  final Duration time;
+  final String text;
+
+  const LyricLine({
+    required this.time,
+    required this.text,
+  });
+}
 
 class EqualizerPreset {
   final String name;
@@ -85,6 +96,10 @@ class AudioPlayerManager extends ChangeNotifier {
   DateTime? _sleepTimerEndTime;
   bool _sleepTimerAtEndOfTrack = false;
 
+  // Favorites & Metadata Overrides
+  Set<int> _favoriteIds = {};
+  Map<int, Map<String, String>> _metadataOverrides = {};
+
   static const List<EqualizerPreset> defaultPresets = [
     EqualizerPreset("Flat", [0.0, 0.0, 0.0, 0.0, 0.0]),
     EqualizerPreset("Bass Booster", [5.0, 3.5, 0.0, 0.0, 0.0]),
@@ -99,6 +114,7 @@ class AudioPlayerManager extends ChangeNotifier {
 
   AudioPlayerManager() {
     _initAudio();
+    _loadLocalData();
   }
 
   AudioPlayer get player => _player;
@@ -112,6 +128,12 @@ class AudioPlayerManager extends ChangeNotifier {
 
   Color get dominantColor => _dominantColor;
   Color get secondaryColor => _secondaryColor;
+
+  Set<int> get favoriteIds => _favoriteIds;
+  bool isFavorite(int id) => _favoriteIds.contains(id);
+
+  double get volume => _player.volume;
+  Stream<double> get volumeStream => _player.volumeStream;
 
   bool get isEqualizerEnabled => _isEqualizerEnabled;
   String get currentPresetName => _currentPresetName;
@@ -499,6 +521,207 @@ class AudioPlayerManager extends ChangeNotifier {
       orElse: () => const EqualizerPreset("Flat", [0.0]),
     );
     applyPreset(flatPreset);
+  }
+
+  // --- VOLUME CONTROL ---
+
+  void setVolume(double val) {
+    _player.setVolume(val.clamp(0.0, 1.0));
+    notifyListeners();
+  }
+
+  // --- QUEUE MANAGEMENT ---
+
+  void playAtIndex(int index) {
+    if (index >= 0 && index < _playlist.length) {
+      _player.seek(Duration.zero, index: index);
+      _player.play();
+    }
+  }
+
+  void removeFromQueue(int index) {
+    if (index >= 0 && index < _playlist.length) {
+      if (index == _currentIndex) {
+        skipToNext();
+      }
+      _playlist.removeAt(index);
+      if (index < _currentIndex) {
+        _currentIndex--;
+      }
+      notifyListeners();
+    }
+  }
+
+  void reorderQueue(int oldIndex, int newIndex) {
+    if (oldIndex < 0 || oldIndex >= _playlist.length ||
+        newIndex < 0 || newIndex > _playlist.length) return;
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final song = _playlist.removeAt(oldIndex);
+    _playlist.insert(newIndex, song);
+
+    if (_currentIndex == oldIndex) {
+      _currentIndex = newIndex;
+    } else if (oldIndex < _currentIndex && newIndex >= _currentIndex) {
+      _currentIndex--;
+    } else if (oldIndex > _currentIndex && newIndex <= _currentIndex) {
+      _currentIndex++;
+    }
+    notifyListeners();
+  }
+
+  // --- FAVORITES ---
+
+  Future<void> toggleFavorite(int songId) async {
+    if (_favoriteIds.contains(songId)) {
+      _favoriteIds.remove(songId);
+    } else {
+      _favoriteIds.add(songId);
+    }
+    notifyListeners();
+    await _saveLocalData();
+  }
+
+  // --- METADATA OVERRIDES (TAG EDITOR) ---
+
+  String getSongTitle(SongModel song) {
+    return _metadataOverrides[song.id]?['title'] ?? song.title;
+  }
+
+  String getSongArtist(SongModel song) {
+    return _metadataOverrides[song.id]?['artist'] ?? (song.artist ?? "Unknown Artist");
+  }
+
+  String getSongAlbum(SongModel song) {
+    return _metadataOverrides[song.id]?['album'] ?? (song.album ?? "Unknown Album");
+  }
+
+  Future<void> updateSongMetadata(int songId, {
+    required String title,
+    required String artist,
+    required String album,
+  }) async {
+    _metadataOverrides[songId] = {
+      'title': title.trim(),
+      'artist': artist.trim(),
+      'album': album.trim(),
+    };
+    notifyListeners();
+    await _saveLocalData();
+  }
+
+  // --- PERSISTENCE ---
+
+  File _getStorageFile() {
+    try {
+      final base = Directory.systemTemp.parent.path;
+      final dir = Directory('$base/files');
+      if (!dir.existsSync()) {
+        dir.createSync(recursive: true);
+      }
+      return File('${dir.path}/qidu_store.json');
+    } catch (_) {
+      return File('${Directory.systemTemp.path}/qidu_store.json');
+    }
+  }
+
+  Future<void> _loadLocalData() async {
+    try {
+      final file = _getStorageFile();
+      if (await file.exists()) {
+        final content = await file.readAsString();
+        if (content.isNotEmpty) {
+          final Map<String, dynamic> data = jsonDecode(content);
+          if (data['favorites'] is List) {
+            _favoriteIds = (data['favorites'] as List).map((e) => e as int).toSet();
+          }
+          if (data['metadata'] is Map) {
+            final meta = data['metadata'] as Map<String, dynamic>;
+            _metadataOverrides = meta.map((k, v) {
+              final id = int.tryParse(k) ?? 0;
+              final map = (v as Map).map((mk, mv) => MapEntry(mk.toString(), mv.toString()));
+              return MapEntry(id, map);
+            });
+          }
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      debugPrint("Error loading Qidu local data: $e");
+    }
+  }
+
+  Future<void> _saveLocalData() async {
+    try {
+      final file = _getStorageFile();
+      final data = {
+        'favorites': _favoriteIds.toList(),
+        'metadata': _metadataOverrides.map((k, v) => MapEntry(k.toString(), v)),
+      };
+      await file.writeAsString(jsonEncode(data));
+    } catch (e) {
+      debugPrint("Error saving Qidu local data: $e");
+    }
+  }
+
+  // --- LYRICS LOADER (.lrc) ---
+
+  Future<List<LyricLine>> loadLyrics(SongModel song) async {
+    try {
+      final filePath = song.data;
+      final dotIndex = filePath.lastIndexOf('.');
+      final lrcPath = dotIndex != -1 ? '${filePath.substring(0, dotIndex)}.lrc' : '$filePath.lrc';
+
+      final lrcFile = File(lrcPath);
+      if (await lrcFile.exists()) {
+        final content = await lrcFile.readAsString();
+        return parseLrc(content);
+      }
+
+      final dir = File(filePath).parent;
+      if (await dir.exists()) {
+        final songTitleClean = song.title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+        await for (final entity in dir.list()) {
+          if (entity is File && entity.path.toLowerCase().endsWith('.lrc')) {
+            final fileNameClean = entity.path.split('/').last.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+            if (fileNameClean.contains(songTitleClean) || songTitleClean.contains(fileNameClean.replaceAll('lrc', ''))) {
+              final content = await entity.readAsString();
+              return parseLrc(content);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Error loading lyrics: $e");
+    }
+    return [];
+  }
+
+  static List<LyricLine> parseLrc(String content) {
+    final lines = content.split('\n');
+    final List<LyricLine> result = [];
+    final regExp = RegExp(r'\[(\d{2}):(\d{2})\.?(\d{2,3})?\](.*)');
+
+    for (final line in lines) {
+      final match = regExp.firstMatch(line.trim());
+      if (match != null) {
+        final minutes = int.parse(match.group(1)!);
+        final seconds = int.parse(match.group(2)!);
+        final millisStr = match.group(3) ?? '00';
+        final millis = millisStr.length == 2 ? int.parse(millisStr) * 10 : int.parse(millisStr);
+        final text = match.group(4)?.trim() ?? '';
+
+        if (text.isNotEmpty) {
+          result.add(LyricLine(
+            time: Duration(minutes: minutes, seconds: seconds, milliseconds: millis),
+            text: text,
+          ));
+        }
+      }
+    }
+    result.sort((a, b) => a.time.compareTo(b.time));
+    return result;
   }
 
   @override

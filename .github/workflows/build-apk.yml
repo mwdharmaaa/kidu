@@ -65,35 +65,36 @@ jobs:
       - name: Prepare Output
         run: |
           mkdir -p build-output
-          cp build/app/outputs/flutter-apk/app-release.apk build-output/qidu-1.2.apk
+          cp build/app/outputs/flutter-apk/app-release.apk build-output/qidu-1.3.apk
           cp build/app/outputs/flutter-apk/app-release.apk build-output/qidu.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: qidu-1.2-apk
-          path: build-output/qidu-1.2.apk
+          name: qidu-1.3-apk
+          path: build-output/qidu-1.3.apk
           retention-days: 30
 
       - name: Create GitHub Release
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/devv'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.2.0-${{ github.sha }}
-          name: Qidu 1.2 (Instant Equalizer & Studio Lossless)
+          tag_name: v1.3.0-${{ github.sha }}
+          name: Qidu 1.3 (Apple Music Polish - Lyrics, Queue, Library & Tag Editor)
           make_latest: true
           body: |
-            ## Qidu 1.2 - Studio Offline Audio Player
-            - **⚡ Instant Equalizer**: Diperbaiki total! Menu Equalizer kini terbuka seketika (0 ms) tanpa loading dan slider merespons secara real-time.
-            - **🏷️ Versi Jelas**: Nama aplikasi di layar Android kini berlabel **Qidu 1.2** agar mudah membedakan versi terbaru.
-            - **🎵 Lossless & Hi-Res Lossless**: Resolusi hingga 24-bit/192 kHz dengan badge format audio interaktif.
-            - **⚙️ Pengaturan Lengkap**: Sound Check (Normalisasi Volume), Crossfade (1-12s), Gapless Playback, dan Sleep Timer.
-            - **🔀 Kontrol Penuh**: Shuffle, Loop Mode, dan Hapus Berkas Audio dari memori dengan konfirmasi aman.
-            - **🎨 Ikon Resmi**: Ikon minimalis resmi Qidu terpasang di launcher Android.
+            ## Qidu 1.3 - Complete Apple Music Studio Offline Experience
+            - **📜 Lirik Lagu Terintegrasi (.lrc)**: Tampilan lirik bergaya karaoke Apple Music dengan auto-scroll dan penanda waktu aktif. Dukungan file `.lrc` lokal dan input lirik manual.
+            - **📑 Antrean Putar (Up Next Queue)**: Kelola daftar lagu yang sedang dan akan diputar, bisa atur ulang urutan (*reorder drag-and-drop*) atau hapus lagu dari antrean.
+            - **🎨 Animasi Cover Membal & Volume Slider**: Cover album membal (*spring bounce*) saat play/pause dan kontrol volume langsung di layar pemutar.
+            - **❤️ Sistem Lagu Favorit**: Tandai lagu favorit dengan ikon hati dan temukan di tab khusus Favorit.
+            - **🗂️ Kategori Perpustakaan Lengkap**: Navigasi pil Apple Music untuk memfilter lagu berdasarkan Semua Lagu, Favorit, Artis, dan Album Grid.
+            - **✏️ Tag / Metadata Editor**: Ubah judul lagu, artis, dan album langsung dari aplikasi agar koleksi MP3 Anda tetap rapi.
+            - **⚡ Instant 5-Band Equalizer & Studio Lossless**: Presets audio studio dan pemutaran lossless bit-perfect tetap siap dinikmati.
             
-            Unduh file `qidu-1.2.apk` (atau `qidu.apk`) di bawah dan pasang di HP Android kamu.
+            Unduh file `qidu-1.3.apk` (atau `qidu.apk`) di bawah dan pasang di HP Android kamu.
           files: |
-            build-output/qidu-1.2.apk
+            build-output/qidu-1.3.apk
             build-output/qidu.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
