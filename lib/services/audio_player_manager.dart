@@ -160,6 +160,7 @@ class AudioPlayerManager extends ChangeNotifier {
     _equalizer = AndroidEqualizer();
     final pipeline = AudioPipeline(androidAudioEffects: [_equalizer]);
     _player = AudioPlayer(audioPipeline: pipeline);
+    _player.setLoopMode(LoopMode.all);
 
     // Asynchronously connect to hardware equalizer parameters without blocking UI
     _equalizer.setEnabled(_isEqualizerEnabled).then((_) {
@@ -211,14 +212,26 @@ class AudioPlayerManager extends ChangeNotifier {
     _currentIndex = initialIndex;
 
     final audioSources = songs.map((song) {
+      final title = getSongTitle(song);
+      final artist = getSongArtist(song);
+      final album = getSongAlbum(song);
+
+      Uri? artUri;
+      final cachedArt = File('${Directory.systemTemp.path}/art_${song.id}.jpg');
+      if (cachedArt.existsSync()) {
+        artUri = Uri.file(cachedArt.path);
+      } else if (song.albumId != null) {
+        artUri = Uri.parse("content://media/external/audio/albumart/${song.albumId}");
+      }
+
       return AudioSource.uri(
         Uri.parse(song.uri ?? song.data),
         tag: MediaItem(
           id: song.id.toString(),
-          album: song.album ?? "Unknown Album",
-          title: song.title,
-          artist: song.artist ?? "Unknown Artist",
-          artUri: Uri.file(song.data),
+          album: album,
+          title: title,
+          artist: artist,
+          artUri: artUri,
         ),
       );
     }).toList();
@@ -250,12 +263,18 @@ class AudioPlayerManager extends ChangeNotifier {
   void skipToNext() {
     if (_player.hasNext) {
       _player.seekToNext();
+    } else if (_playlist.isNotEmpty) {
+      playAtIndex(0);
     }
   }
 
   void skipToPrevious() {
-    if (_player.hasPrevious) {
+    if ((_player.position).inSeconds > 3) {
+      _player.seek(Duration.zero);
+    } else if (_player.hasPrevious) {
       _player.seekToPrevious();
+    } else if (_playlist.isNotEmpty) {
+      playAtIndex(_playlist.length - 1);
     }
   }
 
@@ -464,10 +483,15 @@ class AudioPlayerManager extends ChangeNotifier {
         song.id,
         ArtworkType.AUDIO,
         format: ArtworkFormat.JPEG,
-        size: 200,
+        size: 300,
       );
 
       if (artworkBytes != null && artworkBytes.isNotEmpty) {
+        try {
+          final artFile = File('${Directory.systemTemp.path}/art_${song.id}.jpg');
+          await artFile.writeAsBytes(artworkBytes);
+        } catch (_) {}
+
         final palette = await PaletteGenerator.fromImageProvider(
           MemoryImage(artworkBytes),
           maximumColorCount: 16,
@@ -606,15 +630,60 @@ class AudioPlayerManager extends ChangeNotifier {
   // --- METADATA OVERRIDES (TAG EDITOR) ---
 
   String getSongTitle(SongModel song) {
-    return _metadataOverrides[song.id]?['title'] ?? song.title;
+    if (_metadataOverrides.containsKey(song.id) &&
+        _metadataOverrides[song.id]!['title']?.isNotEmpty == true) {
+      return _metadataOverrides[song.id]!['title']!;
+    }
+    var title = song.title.trim();
+    // Strip common audio extensions
+    title = title.replaceAll(RegExp(r'\.(mp3|m4a|flac|wav|aac|ogg)$', caseSensitive: false), '');
+    // If format is "Artist - Song", extract the song title
+    if (title.contains(' - ')) {
+      final parts = title.split(' - ');
+      if (parts.length >= 2 && parts[1].trim().isNotEmpty) {
+        return parts.sublist(1).join(' - ').trim();
+      }
+    }
+    // Clean downloader prefixes like [yt1s.com]
+    title = title.replaceAll(RegExp(r'^\[.*?\]\s*'), '');
+    return title.isNotEmpty ? title : "Lagu Tanpa Judul";
   }
 
   String getSongArtist(SongModel song) {
-    return _metadataOverrides[song.id]?['artist'] ?? (song.artist ?? "Unknown Artist");
+    if (_metadataOverrides.containsKey(song.id) &&
+        _metadataOverrides[song.id]!['artist']?.isNotEmpty == true) {
+      return _metadataOverrides[song.id]!['artist']!;
+    }
+    final rawArtist = song.artist?.trim() ?? '';
+    if (rawArtist.isNotEmpty &&
+        rawArtist.toLowerCase() != '<unknown>' &&
+        rawArtist.toLowerCase() != 'unknown' &&
+        rawArtist.toLowerCase() != 'unknown artist') {
+      return rawArtist;
+    }
+    // Try extracting from title if "Artist - Song"
+    final rawTitle = song.title.trim();
+    if (rawTitle.contains(' - ')) {
+      final parts = rawTitle.split(' - ');
+      if (parts[0].trim().isNotEmpty) {
+        return parts[0].trim();
+      }
+    }
+    return "Qidu Music";
   }
 
   String getSongAlbum(SongModel song) {
-    return _metadataOverrides[song.id]?['album'] ?? (song.album ?? "Unknown Album");
+    if (_metadataOverrides.containsKey(song.id) &&
+        _metadataOverrides[song.id]!['album']?.isNotEmpty == true) {
+      return _metadataOverrides[song.id]!['album']!;
+    }
+    final rawAlbum = song.album?.trim() ?? '';
+    if (rawAlbum.isNotEmpty &&
+        rawAlbum.toLowerCase() != '<unknown>' &&
+        rawAlbum.toLowerCase() != 'unknown') {
+      return rawAlbum;
+    }
+    return "Koleksi Lagu";
   }
 
   Future<void> updateSongMetadata(int songId, {

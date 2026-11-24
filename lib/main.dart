@@ -14,7 +14,12 @@ Future<void> main() async {
     androidNotificationChannelId: 'com.qidu.app.audio',
     androidNotificationChannelName: 'Qidu Playback',
     androidNotificationOngoing: true,
-    androidStopForegroundOnPause: true,
+    androidStopForegroundOnPause: false,
+    notificationColor: const Color(0xFFFA243C),
+    preloadArtwork: true,
+    androidNotificationIcon: 'mipmap/ic_launcher',
+    artDownscaleWidth: 350,
+    artDownscaleHeight: 350,
   );
 
   // Set system UI overlay (transparent status bar for edge-to-edge aesthetic)
