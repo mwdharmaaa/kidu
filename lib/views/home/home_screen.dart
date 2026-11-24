@@ -220,28 +220,14 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.asset(
-                          'assets/icon/logo.png',
-                          width: 34,
-                          height: 34,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      const Text(
-                        "Qidu 1.3",
-                        style: TextStyle(
-                          color: QiduTheme.textPrimary,
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -0.8,
-                        ),
-                      ),
-                    ],
+                  const Text(
+                    "Qidu",
+                    style: TextStyle(
+                      color: QiduTheme.textPrimary,
+                      fontSize: 34,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.8,
+                    ),
                   ),
                   Row(
                     children: [

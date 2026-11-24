@@ -12,7 +12,7 @@ Future<void> main() async {
   // Initialize background audio playback service & notification for Qidu
   await JustAudioBackground.init(
     androidNotificationChannelId: 'com.qidu.app.audio',
-    androidNotificationChannelName: 'Qidu 1.2 Playback',
+    androidNotificationChannelName: 'Qidu Playback',
     androidNotificationOngoing: true,
     androidStopForegroundOnPause: true,
   );
@@ -38,7 +38,7 @@ class QiduApp extends StatelessWidget {
     return ChangeNotifierProvider<AudioPlayerManager>(
       create: (_) => AudioPlayerManager(),
       child: MaterialApp(
-        title: 'Qidu 1.2',
+        title: 'Qidu',
         debugShowCheckedModeBanner: false,
         theme: QiduTheme.darkTheme,
         home: const HomeScreen(),
