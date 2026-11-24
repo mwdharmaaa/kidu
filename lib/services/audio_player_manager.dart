@@ -155,6 +155,8 @@ class AudioPlayerManager extends ChangeNotifier {
 
   Stream<LoopMode> get loopModeStream => _player.loopModeStream;
   LoopMode get loopMode => _player.loopMode;
+  bool get isLoopEnabled => _player.loopMode != LoopMode.off;
+  bool get isLoopOne => _player.loopMode == LoopMode.one;
 
   Future<void> _initAudio() async {
     _equalizer = AndroidEqualizer();
