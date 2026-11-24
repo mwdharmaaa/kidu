@@ -102,30 +102,66 @@ def patch():
                 f.write(content)
             print(f"[OK] Upgraded Java version to 17 in {path}")
 
-    # 5. Patch AudioService.java for single combined mode button (Berurutan -> Loop -> Shuffle)
+    # 5. Patch MediaButtonReceiver.java for broadcast handling of cycle action
+    for path in glob.glob(f"{pub_cache}/hosted/pub.dev/audio_service-*/android/src/main/java/com/ryanheise/audioservice/MediaButtonReceiver.java"):
+        with open(path, "r", encoding="utf-8") as f:
+            content = f.read()
+        old_mbr = """        if (intent != null
+                && ACTION_NOTIFICATION_DELETE.equals(intent.getAction())
+                && AudioService.instance != null) {
+            AudioService.instance.handleDeleteNotification();
+            return;
+        }"""
+        new_mbr = """        if (intent != null) {
+            String action = intent.getAction();
+            if ((AudioService.ACTION_CYCLE_ORDER_MODE.equals(action) || "cycleOrderMode".equals(action))
+                    && AudioService.instance != null) {
+                AudioService.instance.cycleOrderMode();
+                return;
+            }
+            if (ACTION_NOTIFICATION_DELETE.equals(action) && AudioService.instance != null) {
+                AudioService.instance.handleDeleteNotification();
+                return;
+            }
+        }"""
+        if old_mbr in content:
+            content = content.replace(old_mbr, new_mbr)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print(f"[OK] Patched MediaButtonReceiver in {path}")
+
+    # 6. Patch AudioService.java for single combined mode button (Berurutan -> Loop -> Shuffle)
     for path in glob.glob(f"{pub_cache}/hosted/pub.dev/audio_service-*/android/src/main/java/com/ryanheise/audioservice/AudioService.java"):
         with open(path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        # Constants
+        # Constants and cycleOrderMode()
         old_constants = "    public static final int MAX_COMPACT_ACTIONS = 3;"
         new_constants = """    public static final int MAX_COMPACT_ACTIONS = 3;
     public static final String ACTION_CYCLE_ORDER_MODE = "com.ryanheise.audioservice.action.CYCLE_ORDER_MODE";
     public static final String ACTION_TOGGLE_SHUFFLE = "com.ryanheise.audioservice.action.TOGGLE_SHUFFLE";
     public static final String ACTION_TOGGLE_REPEAT = "com.ryanheise.audioservice.action.TOGGLE_REPEAT";
 
-    void cycleOrderMode() {
+    public void cycleOrderMode() {
         if (mediaSessionCallback == null) return;
         if (this.shuffleMode == PlaybackStateCompat.SHUFFLE_MODE_ALL) {
             // Shuffle -> Berurutan
+            this.shuffleMode = PlaybackStateCompat.SHUFFLE_MODE_NONE;
+            this.repeatMode = PlaybackStateCompat.REPEAT_MODE_NONE;
             mediaSessionCallback.onSetShuffleMode(PlaybackStateCompat.SHUFFLE_MODE_NONE);
             mediaSessionCallback.onSetRepeatMode(PlaybackStateCompat.REPEAT_MODE_NONE);
-        } else if (this.repeatMode != PlaybackStateCompat.REPEAT_MODE_NONE) {
-            // Loop -> Shuffle
+        } else if (this.repeatMode == PlaybackStateCompat.REPEAT_MODE_ONE) {
+            // Loop (One) -> Shuffle
+            this.repeatMode = PlaybackStateCompat.REPEAT_MODE_NONE;
+            this.shuffleMode = PlaybackStateCompat.SHUFFLE_MODE_ALL;
+            mediaSessionCallback.onSetRepeatMode(PlaybackStateCompat.REPEAT_MODE_NONE);
             mediaSessionCallback.onSetShuffleMode(PlaybackStateCompat.SHUFFLE_MODE_ALL);
         } else {
-            // Berurutan -> Loop
-            mediaSessionCallback.onSetRepeatMode(PlaybackStateCompat.REPEAT_MODE_ALL);
+            // Berurutan -> Loop (One)
+            this.shuffleMode = PlaybackStateCompat.SHUFFLE_MODE_NONE;
+            this.repeatMode = PlaybackStateCompat.REPEAT_MODE_ONE;
+            mediaSessionCallback.onSetShuffleMode(PlaybackStateCompat.SHUFFLE_MODE_NONE);
+            mediaSessionCallback.onSetRepeatMode(PlaybackStateCompat.REPEAT_MODE_ONE);
         }
     }"""
         if old_constants in content and "ACTION_CYCLE_ORDER_MODE" not in content:
@@ -150,7 +186,7 @@ def patch():
             content = content.replace(old_auto, new_auto)
             print(f"[OK] Patched AUTO_ENABLED_ACTIONS in {path}")
 
-        # createAction: ensure PendingIntent for order mode button
+        # createAction: ensure Broadcast PendingIntent for order mode button
         old_create_action = """    NotificationCompat.Action createAction(String resource, String label, long actionCode) {
         int iconId = getResourceId(resource);
         return new NotificationCompat.Action(iconId, label,
@@ -160,13 +196,13 @@ def patch():
         int iconId = getResourceId(resource);
         PendingIntent intent = buildMediaButtonPendingIntent(actionCode);
         if (intent == null) {
-            Intent customIntent = new Intent(this, AudioService.class);
+            Intent customIntent = new Intent(this, MediaButtonReceiver.class);
             int flags = 0;
             if (Build.VERSION.SDK_INT >= 23) {
                 flags |= PendingIntent.FLAG_IMMUTABLE;
             }
             customIntent.setAction(ACTION_CYCLE_ORDER_MODE);
-            intent = PendingIntent.getService(this, 1000, customIntent, flags);
+            intent = PendingIntent.getBroadcast(this, 1000, customIntent, flags);
         }
         return new NotificationCompat.Action(iconId, label, intent);
     }"""
@@ -189,11 +225,11 @@ def patch():
         if (shuffleMode == PlaybackStateCompat.SHUFFLE_MODE_ALL) {
             orderIcon = getResourceId("drawable/ic_shuffle");
             orderLabel = "Mode: Acak (Shuffle)";
-        } else if (repeatMode != PlaybackStateCompat.REPEAT_MODE_NONE) {
-            orderIcon = getResourceId("drawable/ic_repeat");
-            orderLabel = "Mode: Loop (Ulang)";
+        } else if (repeatMode == PlaybackStateCompat.REPEAT_MODE_ONE) {
+            orderIcon = getResourceId("drawable/ic_repeat_one");
+            orderLabel = "Mode: Loop (Ulang 1 Lagu)";
         } else {
-            orderIcon = getResourceId("drawable/ic_sequential");
+            orderIcon = getResourceId("drawable/ic_repeat");
             orderLabel = "Mode: Berurutan";
         }
 
@@ -209,16 +245,35 @@ def patch():
         old_on_custom = """        @Override
         public void onCustomAction(String action, Bundle extras) {
             if (listener == null) return;
-            listener.onCustomAction(action, extras);
+            if (CUSTOM_ACTION_STOP.equals(action)) {
+                listener.onStop();
+            } else if (CUSTOM_ACTION_FAST_FORWARD.equals(action)) {
+                listener.onFastForward();
+            } else if (CUSTOM_ACTION_REWIND.equals(action)) {
+                listener.onRewind();
+            } else {
+                listener.onCustomAction(action, extras);
+            }
         }"""
         new_on_custom = """        @Override
         public void onCustomAction(String action, Bundle extras) {
-            if (ACTION_CYCLE_ORDER_MODE.equals(action) || ACTION_TOGGLE_SHUFFLE.equals(action) || ACTION_TOGGLE_REPEAT.equals(action)) {
+            if (ACTION_CYCLE_ORDER_MODE.equals(action) || "cycleOrderMode".equals(action) || ACTION_TOGGLE_SHUFFLE.equals(action) || ACTION_TOGGLE_REPEAT.equals(action)) {
                 cycleOrderMode();
+                if (listener != null) {
+                    listener.onCustomAction(action, extras);
+                }
                 return;
             }
             if (listener == null) return;
-            listener.onCustomAction(action, extras);
+            if (CUSTOM_ACTION_STOP.equals(action)) {
+                listener.onStop();
+            } else if (CUSTOM_ACTION_FAST_FORWARD.equals(action)) {
+                listener.onFastForward();
+            } else if (CUSTOM_ACTION_REWIND.equals(action)) {
+                listener.onRewind();
+            } else {
+                listener.onCustomAction(action, extras);
+            }
         }"""
         if old_on_custom in content:
             content = content.replace(old_on_custom, new_on_custom)
@@ -234,7 +289,7 @@ def patch():
     public int onStartCommand(final Intent intent, int flags, int startId) {
         if (intent != null) {
             String action = intent.getAction();
-            if (ACTION_CYCLE_ORDER_MODE.equals(action) || ACTION_TOGGLE_SHUFFLE.equals(action) || ACTION_TOGGLE_REPEAT.equals(action)) {
+            if (ACTION_CYCLE_ORDER_MODE.equals(action) || "cycleOrderMode".equals(action) || ACTION_TOGGLE_SHUFFLE.equals(action) || ACTION_TOGGLE_REPEAT.equals(action)) {
                 cycleOrderMode();
                 return START_NOT_STICKY;
             }
@@ -252,7 +307,7 @@ def patch():
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    # 6. Patch just_audio_background.dart
+    # 7. Patch just_audio_background.dart
     for path in glob.glob(f"{pub_cache}/hosted/pub.dev/just_audio_background-*/lib/just_audio_background.dart"):
         with open(path, "r", encoding="utf-8") as f:
             content = f.read()
@@ -294,6 +349,51 @@ def patch():
             content = content.replace(old_prev, new_prev)
             print(f"[OK] Patched skipToPrevious in {path}")
 
+        # Hook cycleOrderMode and customAction in _PlayerAudioHandler
+        old_shuffle_method = """  @override
+  Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
+    _shuffleMode = shuffleMode;
+    _updateShuffleIndices();
+    _broadcastStateIfActive();
+    (await _player).setShuffleMode(SetShuffleModeRequest(
+        shuffleMode: ShuffleModeMessage.values[
+            min(ShuffleModeMessage.values.length - 1, shuffleMode.index)]));
+  }"""
+        new_shuffle_method = """  @override
+  Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
+    _shuffleMode = shuffleMode;
+    _updateShuffleIndices();
+    _broadcastStateIfActive();
+    (await _player).setShuffleMode(SetShuffleModeRequest(
+        shuffleMode: ShuffleModeMessage.values[
+            min(ShuffleModeMessage.values.length - 1, shuffleMode.index)]));
+  }
+
+  Future<void> cycleOrderMode() async {
+    if (_shuffleMode == AudioServiceShuffleMode.all) {
+      await setShuffleMode(AudioServiceShuffleMode.none);
+      await setRepeatMode(AudioServiceRepeatMode.none);
+    } else if (_repeatMode == AudioServiceRepeatMode.one) {
+      await setRepeatMode(AudioServiceRepeatMode.all);
+      await setShuffleMode(AudioServiceShuffleMode.all);
+    } else {
+      await setShuffleMode(AudioServiceShuffleMode.none);
+      await setRepeatMode(AudioServiceRepeatMode.one);
+    }
+  }
+
+  @override
+  Future<dynamic> customAction(String name, [Map<String, dynamic>? extras]) async {
+    if (name == "cycleOrderMode" || name == "com.ryanheise.audioservice.action.CYCLE_ORDER_MODE") {
+      await cycleOrderMode();
+      return true;
+    }
+    return super.customAction(name, extras);
+  }"""
+        if old_shuffle_method in content:
+            content = content.replace(old_shuffle_method, new_shuffle_method)
+            print(f"[OK] Patched customAction & cycleOrderMode in {path}")
+
         # Single combined mode control in controls list
         old_broadcast = """  void _broadcastState() {
     final controls = [
@@ -303,18 +403,18 @@ def patch():
       if (hasNext) MediaControl.skipToNext,
     ];"""
         new_broadcast = """  void _broadcastState() {
-    final orderControl = MediaControl(
+    final orderControl = MediaControl.custom(
       androidIcon: _shuffleMode == AudioServiceShuffleMode.all
           ? 'drawable/ic_shuffle'
-          : (_repeatMode != AudioServiceRepeatMode.none
-              ? 'drawable/ic_repeat'
-              : 'drawable/ic_sequential'),
+          : (_repeatMode == AudioServiceRepeatMode.one
+              ? 'drawable/ic_repeat_one'
+              : 'drawable/ic_repeat'),
       label: _shuffleMode == AudioServiceShuffleMode.all
           ? 'Mode: Acak (Shuffle)'
-          : (_repeatMode != AudioServiceRepeatMode.none
-              ? 'Mode: Loop (Ulang)'
+          : (_repeatMode == AudioServiceRepeatMode.one
+              ? 'Mode: Loop (Ulang 1 Lagu)'
               : 'Mode: Berurutan'),
-      action: MediaAction.setShuffleMode,
+      name: 'cycleOrderMode',
     );
     final controls = [
       orderControl,

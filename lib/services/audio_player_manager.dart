@@ -337,7 +337,7 @@ class AudioPlayerManager extends ChangeNotifier {
     if (_player.shuffleModeEnabled) {
       return PlaybackOrderMode.shuffle;
     }
-    if (_player.loopMode != LoopMode.off) {
+    if (_player.loopMode == LoopMode.one) {
       return PlaybackOrderMode.loop;
     }
     return PlaybackOrderMode.sequential;
@@ -348,7 +348,7 @@ class AudioPlayerManager extends ChangeNotifier {
       case PlaybackOrderMode.sequential:
         return "Mode: Berurutan";
       case PlaybackOrderMode.loop:
-        return "Mode: Loop (Ulang Semua)";
+        return "Mode: Loop (Ulang 1 Lagu)";
       case PlaybackOrderMode.shuffle:
         return "Mode: Acak (Shuffle)";
     }
@@ -362,13 +362,14 @@ class AudioPlayerManager extends ChangeNotifier {
     String message;
     switch (current) {
       case PlaybackOrderMode.sequential:
-        // Berurutan -> Loop
+        // Berurutan -> Loop (Ulang 1 Lagu)
         await _player.setShuffleModeEnabled(false);
-        await _player.setLoopMode(LoopMode.all);
-        message = "Mode Putar: Loop (Ulang Semua)";
+        await _player.setLoopMode(LoopMode.one);
+        message = "Mode Putar: Loop (Ulang 1 Lagu)";
         break;
       case PlaybackOrderMode.loop:
         // Loop -> Shuffle
+        await _player.setLoopMode(LoopMode.all);
         await _player.shuffle();
         await _player.setShuffleModeEnabled(true);
         message = "Mode Putar: Acak (Shuffle)";

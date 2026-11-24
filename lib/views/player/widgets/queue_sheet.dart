@@ -86,11 +86,11 @@ class QueueSheet extends StatelessWidget {
                             Color modeColor;
                             switch (manager.playbackOrderMode) {
                               case PlaybackOrderMode.sequential:
-                                modeIcon = Icons.playlist_play;
+                                modeIcon = CupertinoIcons.repeat;
                                 modeColor = Colors.white60;
                                 break;
                               case PlaybackOrderMode.loop:
-                                modeIcon = CupertinoIcons.repeat;
+                                modeIcon = CupertinoIcons.repeat_1;
                                 modeColor = QiduTheme.accentColor;
                                 break;
                               case PlaybackOrderMode.shuffle:

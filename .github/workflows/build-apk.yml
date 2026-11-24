@@ -65,48 +65,48 @@ jobs:
       - name: Prepare Output
         run: |
           mkdir -p build-output
-          cp build/app/outputs/flutter-apk/app-release.apk build-output/qidu-1.3.1.apk
+          cp build/app/outputs/flutter-apk/app-release.apk build-output/qidu-1.3.2.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: qidu-1.3.1-apk
-          path: build-output/qidu-1.3.1.apk
+          name: qidu-1.3.2-apk
+          path: build-output/qidu-1.3.2.apk
           retention-days: 30
 
       - name: Create GitHub Release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.3.1
-          name: Qidu 1.3.1 - Pemutar Musik Apple Music Studio
+          tag_name: v1.3.2
+          name: Qidu 1.3.2 - Pemutar Musik Apple Music Studio
           make_latest: true
           body: |
-            ## Qidu 1.3.1 - Pemutar Musik Apple Music Studio
+            ## Qidu 1.3.2 - Pemutar Musik Apple Music Studio
 
-            Pembaruan Qidu versi 1.3.1 dengan penyatuan kontrol putar menjadi satu tombol terpadu (Berurutan, Loop, dan Acak), bilah notifikasi media latar belakang, dan pengoptimalan performa audio.
+            Pembaruan Qidu versi 1.3.2 dengan perbaikan tombol kontrol bilah notifikasi media latar belakang, ikon kontrol mode putar terpadu (Berurutan, Loop 1 Lagu, dan Acak), dan stabilitas pemutaran audio.
 
             ### Pembaruan dan Fitur Utama:
-            - Tombol Pemutaran Terpadu:
-              - Siklus satu tombol terpadu: Berurutan, Loop (Ulang Semua), dan Acak (Shuffle).
-              - Status awal adalah Berurutan sesuai urutan daftar tanpa looping berulang.
-              - Ikon berbeda secara jelas antara mode Berurutan, Loop, dan Acak.
-              - Tombol Sebelumnya (Previous) dan Berikutnya (Next) selalu aktif dan responsif.
-              - Tombol Stop pada bilah notifikasi telah dinonaktifkan agar tidak mengganggu navigasi.
-            - Bilah Notifikasi Media Latar Belakang:
-              - Integrasi MediaSession Android dengan tombol aksi kustom untuk pergantian mode urutan putar, Sebelumnya, Putar/Jeda, dan Berikutnya.
-              - Tampilan metadata judul, artis, dan sampul album yang akurat langsung dari memori perangkat.
+            - Tombol Pemutaran Terpadu (Berurutan, Loop 1 Lagu, Acak):
+              - Ikon Mode Berurutan: Ikon loop berputar standar (memutar antrean lagu berurutan).
+              - Ikon Mode Loop: Ikon loop berputar dengan angka satu kecil di tengahnya (mengulang 1 lagu aktif).
+              - Ikon Mode Acak: Ikon panah bersilang (memutar lagu secara acak/shuffle).
+              - Siklus 1 tombol: Berurutan -> Loop (Ulang 1 Lagu) -> Acak (Shuffle) -> Berurutan.
+            - Bilah Notifikasi Media Latar Belakang Responsif:
+              - Perbaikan integrasi MediaSession Compat dan MediaButtonReceiver pada bilah notifikasi atas.
+              - Tombol mode putar pada bilah notifikasi kini responsif saat ditekan langsung dari panel notifikasi sistem dan Quick Settings.
+              - Tombol Sebelumnya, Putar/Jeda, dan Berikutnya aktif penuh dengan sinkronisasi visual sampul album dan metadata lagu.
             - Lirik Lagu Terintegrasi (.lrc):
               - Sinkronisasi lirik bergaya karaoke Apple Music dengan auto-scroll dan penanda waktu aktif.
             - Antrean Putar (Up Next Queue):
-              - Pengaturan urutan antrean putar dengan drag-and-drop dan tombol kontrol mode putar langsung dari lembar antrean.
+              - Pengaturan urutan antrean putar dengan drag-and-drop dan tombol kontrol mode putar terpadu di lembar antrean.
             - Manajemen Perpustakaan Musik:
               - Filter lagu berdasarkan Semua Lagu, Favorit, Artis, dan Album Grid.
               - Editor metadata lagu (judul, artis, album) langsung dari aplikasi.
-              - Hapus berkas audio dengan izin penyimpanan Android 11 ke atas.
+              - Hapus berkas audio dengan izin penyimpanan Android.
 
-            Unduh berkas qidu-1.3.1.apk di bawah untuk memasang pembaruan ini di perangkat Android Anda.
+            Unduh berkas qidu-1.3.2.apk di bawah untuk memasang pembaruan ini di perangkat Android Anda.
           files: |
-            build-output/qidu-1.3.1.apk
+            build-output/qidu-1.3.2.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
